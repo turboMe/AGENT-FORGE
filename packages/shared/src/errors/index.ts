@@ -56,3 +56,12 @@ export class LLMError extends AppError {
     this.provider = provider;
   }
 }
+
+export class MemoryError extends AppError {
+  public readonly service: string;
+
+  constructor(service: string, message: string, statusCode = 502) {
+    super(message, statusCode, 'MEMORY_UNAVAILABLE');
+    this.service = service;
+  }
+}

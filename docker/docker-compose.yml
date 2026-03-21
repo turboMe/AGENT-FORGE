@@ -21,12 +21,14 @@ services:
   letta:
     image: letta/letta:latest
     container_name: agentforge-letta
+    restart: unless-stopped
     ports:
       - "8283:8283"
     volumes:
       - letta-data:/root/.letta
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LETTA_API_KEY=${LETTA_API_KEY:-}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -35,6 +37,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   # ── n8n (v2 — tool execution) ─────────────────
   # n8n:

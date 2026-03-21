@@ -10,6 +10,7 @@ export {
   QuotaExceededError,
   LLMError,
   ValidationError,
+  MemoryError,
 } from './errors/index.js';
 
 // === Validators ===
