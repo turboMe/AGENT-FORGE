@@ -16,4 +16,4 @@ export {
 export { CreateTaskSchema, CreateSkillSchema, RateSkillSchema } from './validators/index.js';
 
 // === Constants ===
-export { TIER_LIMITS, MODEL_CONFIG, DEFAULT_SETTINGS } from './constants.js';
+export { TIER_LIMITS, MODEL_CONFIG, DEFAULT_SETTINGS, ROUTING_THRESHOLDS, QUALITY_THRESHOLDS } from './constants.js';

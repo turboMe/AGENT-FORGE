@@ -1,15 +1,79 @@
 import type { ISkill } from '@agentforge/shared';
 
+// ── Embedding Config ────────────────────────────────
+
+export interface EmbeddingConfig {
+  apiKey: string;
+  model?: string;
+}
+
+// ── Search Types ────────────────────────────────────
+
+export interface SearchOptions {
+  /** Max results to return. Default: 10 */
+  limit?: number;
+  /** Minimum hybrid score threshold. Default: 0 */
+  minScore?: number;
+  /** Filter by domains */
+  domains?: string[];
+}
+
 export interface SkillSearchResult {
-  skill: ISkill | null;
+  skill: ISkill;
   matchScore: number;
   recommendation: 'use' | 'adapt' | 'create';
 }
 
+// ── Pagination ──────────────────────────────────────
+
+export interface PaginationOptions {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// ── Skill Library Config ────────────────────────────
+
+export interface SkillLibraryConfig {
+  mongoUri: string;
+  embedding: EmbeddingConfig;
+  search?: {
+    keywordWeight?: number;
+    vectorWeight?: number;
+  };
+}
+
+// ── ISkillLibrary interface ─────────────────────────
+
 export interface ISkillLibrary {
-  search(tenantId: string, keywords: string[], domain?: string[]): Promise<SkillSearchResult>;
-  save(skill: Partial<ISkill>): Promise<ISkill>;
-  updateStats(skillId: string, usage: { incrementUseCount?: boolean; rating?: number }): Promise<void>;
+  search(
+    tenantId: string,
+    query: string,
+    options?: SearchOptions,
+  ): Promise<SkillSearchResult[]>;
+
+  save(
+    skill: Omit<ISkill, '_id' | 'version' | 'stats' | 'createdAt' | 'updatedAt'>,
+  ): Promise<ISkill>;
+
+  updateStats(
+    skillId: string,
+    usage: { incrementUseCount?: boolean; rating?: number },
+  ): Promise<void>;
+
   findById(skillId: string): Promise<ISkill | null>;
-  findByTenant(tenantId: string, options?: { page?: number; limit?: number }): Promise<ISkill[]>;
+
+  findByTenant(
+    tenantId: string,
+    options?: PaginationOptions,
+  ): Promise<PaginatedResult<ISkill>>;
 }
