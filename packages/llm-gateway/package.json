@@ -19,6 +19,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentforge/shared": "workspace:*"
+    "@agentforge/shared": "workspace:*",
+    "@anthropic-ai/sdk": "^0.80.0",
+    "openai": "^6.32.0"
   }
 }

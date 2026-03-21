@@ -1,17 +1,20 @@
-// LLM Provider adapters — Claude, GPT, Gemini, Ollama
-// Phase 2 implementation
+import type { ILLMProvider, LLMProviderName, ProviderConfig } from '../types.js';
+import { AnthropicProvider } from './anthropic.js';
+import { OpenAIProvider } from './openai.js';
 
-export interface ILLMProvider {
-  readonly name: string;
-  readonly provider: string;
-  generate(params: {
-    prompt: string;
-    systemPrompt?: string;
-    maxTokens?: number;
-    temperature?: number;
-  }): Promise<{
-    content: string;
-    tokensInput: number;
-    tokensOutput: number;
-  }>;
+export { BaseLLMProvider } from './base.js';
+export { AnthropicProvider } from './anthropic.js';
+export { OpenAIProvider } from './openai.js';
+
+const PROVIDER_FACTORIES: Record<LLMProviderName, new (config: ProviderConfig) => ILLMProvider> = {
+  anthropic: AnthropicProvider,
+  openai: OpenAIProvider,
+};
+
+/**
+ * Creates a provider instance by name.
+ */
+export function createProvider(name: LLMProviderName, config: ProviderConfig): ILLMProvider {
+  const Factory = PROVIDER_FACTORIES[name];
+  return new Factory(config);
 }
