@@ -21,9 +21,13 @@
     "@agentforge/prompt-architect": "workspace:*",
     "@agentforge/memory": "workspace:*",
     "fastify": "^5.2.1",
-    "pino": "^9.6.0"
+    "fastify-plugin": "^5.0.1",
+    "firebase-admin": "^13.0.2",
+    "pino": "^9.6.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
+    "pino-pretty": "^13.0.0",
     "tsx": "^4.19.2"
   }
 }
