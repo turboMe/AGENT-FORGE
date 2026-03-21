@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../orchestrator" },
+    { "path": "../skill-library" },
+    { "path": "../llm-gateway" },
+    { "path": "../prompt-architect" },
+    { "path": "../memory" }
+  ]
+}
