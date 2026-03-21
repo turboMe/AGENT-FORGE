@@ -22,7 +22,9 @@
     "@agentforge/shared": "workspace:*",
     "@agentforge/skill-library": "workspace:*",
     "@agentforge/llm-gateway": "workspace:*",
-    "@agentforge/prompt-architect": "workspace:*",
-    "@agentforge/memory": "workspace:*"
+    "mongoose": "^8.9.5"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.4"
   }
 }
