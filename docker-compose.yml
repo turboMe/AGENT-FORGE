@@ -50,7 +50,7 @@ services:
     ports:
       - "${PORT:-3000}:3000"
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
       - PORT=3000
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - API_VERSION=${API_VERSION:-v1}
