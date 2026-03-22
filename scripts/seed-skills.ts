@@ -26,15 +26,16 @@ import { SkillIndexer } from '@agentforge/skill-library';
 config({ path: resolve(import.meta.dirname ?? '.', '..', '.env') });
 
 const MONGODB_URI = process.env['MONGODB_URI'];
-const ANTHROPIC_API_KEY = process.env['ANTHROPIC_API_KEY'];
+const VOYAGE_API_KEY = process.env['VOYAGE_API_KEY'];
 
 if (!MONGODB_URI) {
   console.error('✗ MONGODB_URI is not set in .env');
   process.exit(1);
 }
 
-if (!ANTHROPIC_API_KEY) {
-  console.error('✗ ANTHROPIC_API_KEY is not set in .env');
+if (!VOYAGE_API_KEY) {
+  console.error('✗ VOYAGE_API_KEY is not set in .env');
+  console.error('  Get a free key at: https://dash.voyageai.com/');
   process.exit(1);
 }
 
@@ -44,6 +45,12 @@ const SKILLS_DIR = resolve(import.meta.dirname ?? '.', '..', '.claude', 'skills'
 const TENANT_ID = 'system';
 const CREATED_BY = 'migration';
 const EMBEDDING_DIMENSIONS = 1024;
+const EMBEDDING_DELAY_MS = 25_000; // 25s between calls (free tier: 3 RPM)
+const MAX_RETRIES = 3;
+
+// ── Helpers ─────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ── Colors ──────────────────────────────────────────────
 
@@ -476,12 +483,12 @@ async function main(): Promise<void> {
 
   // 3. Connect to MongoDB
   console.log(`\n${c.bold('━━━ Database ━━━')}\n`);
-  await mongoose.connect(MONGODB_URI, { dbName: 'agentforge' });
+  await mongoose.connect(MONGODB_URI!, { dbName: 'agentforge' });
   console.log(`  ${c.green('✓')} Connected to MongoDB Atlas`);
 
-  // 4. Initialize embedding service
-  const embeddingService = new EmbeddingService({ apiKey: ANTHROPIC_API_KEY });
-  const indexer = new SkillIndexer({ apiKey: ANTHROPIC_API_KEY });
+  // 4. Initialize embedding service (Voyage AI)
+  const embeddingService = new EmbeddingService({ apiKey: VOYAGE_API_KEY! });
+  const indexer = new SkillIndexer({ apiKey: VOYAGE_API_KEY! });
 
   // 5. Upsert skills with embeddings
   console.log(`\n${c.bold('━━━ Seeding ━━━')}\n`);
@@ -524,7 +531,26 @@ async function main(): Promise<void> {
       });
 
       console.log(`  ${c.dim('→')} Generating embedding for ${c.cyan(skill.name)}...`);
-      const embedding = await embeddingService.generateEmbedding(embeddingText);
+
+      // Retry with backoff for rate limits
+      let embedding: number[] | null = null;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          embedding = await embeddingService.generateEmbedding(embeddingText);
+          break;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('429') && attempt < MAX_RETRIES) {
+            const wait = attempt * 30_000;
+            console.log(`  ${c.yellow('⏳')} Rate limited, waiting ${wait / 1000}s (attempt ${attempt}/${MAX_RETRIES})...`);
+            await sleep(wait);
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      if (!embedding) throw new Error('Failed to generate embedding after retries');
 
       // Upsert into MongoDB
       await SkillModel.findOneAndUpdate(
@@ -560,6 +586,12 @@ async function main(): Promise<void> {
 
       seeded++;
       console.log(`  ${c.green('✓')} ${skill.name} — ${embedding.length}-dim embedding`);
+
+      // Delay between API calls to respect rate limits
+      if (seeded < parsedSkills.length) {
+        console.log(`  ${c.dim(`⏳ Waiting ${EMBEDDING_DELAY_MS / 1000}s (rate limit)...`)}`);
+        await sleep(EMBEDDING_DELAY_MS);
+      }
     } catch (error) {
       failed++;
       const msg = error instanceof Error ? error.message : String(error);
