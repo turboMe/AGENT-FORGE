@@ -10,6 +10,8 @@ import { decisionRoutes } from './routes/decisions.js';
 import { workflowRoutes } from './routes/workflows.js';
 import { credentialRoutes } from './routes/credentials.js';
 import { settingsRoutes } from './routes/settings.js';
+import { marketplaceRoutes } from './routes/marketplace.js';
+import { analyticsRoutes } from './routes/analytics.js';
 
 export async function buildServer() {
   const app = Fastify({
@@ -43,6 +45,8 @@ export async function buildServer() {
   await app.register(workflowRoutes, { prefix: '/api/v1' });
   await app.register(credentialRoutes, { prefix: '/api/v1' });
   await app.register(settingsRoutes, { prefix: '/api/v1' });
+  await app.register(marketplaceRoutes, { prefix: '/api/v1' });
+  await app.register(analyticsRoutes, { prefix: '/api/v1' });
 
   return app;
 }

@@ -3,6 +3,8 @@ import type { Skill, SkillUpdatePayload } from '@/types/skill';
 import type { Workflow, WorkflowRun, WorkflowParameter } from '@/types/workflow';
 import type { Credential, CreateCredentialPayload } from '@/types/credential';
 import type { UserProfile, UsageStats } from '@/types/settings';
+import type { MarketplaceSkill } from '@/types/marketplace';
+import type { Decision, AnalyticsOverview } from '@/types/analytics';
 
 const API_BASE = '/api/v1';
 
@@ -289,6 +291,98 @@ export async function updateProfile(data: Partial<UserProfile>): Promise<void> {
 export async function fetchUsage(): Promise<UsageStats> {
   const res = await fetch(`${API_BASE}/settings/usage`);
   if (!res.ok) throw new Error(`Failed to fetch usage: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+// ── Marketplace API ──────────────────────────────────
+
+export interface FetchMarketplaceParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  sort?: string;
+}
+
+export interface FetchMarketplaceResponse {
+  skills: MarketplaceSkill[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchMarketplaceSkills(
+  params: FetchMarketplaceParams = {},
+): Promise<FetchMarketplaceResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.search) query.set('search', params.search);
+  if (params.category) query.set('category', params.category);
+  if (params.sort) query.set('sort', params.sort);
+
+  const res = await fetch(`${API_BASE}/marketplace?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch marketplace: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function installMarketplaceSkill(skillId: string): Promise<{ installed: boolean }> {
+  const res = await fetch(`${API_BASE}/marketplace/${skillId}/install`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Failed to install skill: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+// ── Analytics / Decisions API ────────────────────────
+
+export interface FetchDecisionsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  action?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  success?: boolean;
+}
+
+export interface FetchDecisionsResponse {
+  decisions: Decision[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchDecisions(
+  params: FetchDecisionsParams = {},
+): Promise<FetchDecisionsResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.search) query.set('search', params.search);
+  if (params.action) query.set('action', params.action);
+  if (params.dateFrom) query.set('from', params.dateFrom);
+  if (params.dateTo) query.set('to', params.dateTo);
+  if (params.success !== undefined) query.set('success', String(params.success));
+
+  const res = await fetch(`${API_BASE}/decisions?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch decisions: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function fetchAnalyticsOverview(): Promise<AnalyticsOverview> {
+  const res = await fetch(`${API_BASE}/analytics/overview`);
+  if (!res.ok) throw new Error(`Failed to fetch analytics: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
 }

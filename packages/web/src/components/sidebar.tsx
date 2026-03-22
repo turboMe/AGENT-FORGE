@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   Sparkles,
+  Store,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: "Chat", href: "/", icon: MessageSquare },
   { name: "Skills", href: "/skills", icon: Library },
+  { name: "Marketplace", href: "/marketplace", icon: Store },
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Credentials", href: "/credentials", icon: KeyRound },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
