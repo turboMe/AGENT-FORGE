@@ -1,0 +1,144 @@
+# ═══════════════════════════════════════════════════════
+#  AgentForge — Continuous Integration
+#  Runs on every PR to main / develop
+# ═══════════════════════════════════════════════════════
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ── 1. Lint & Type-check ─────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+  # ── 2. Unit tests (no external deps) ─────────────────
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Run all tests EXCEPT integration & e2e patterns
+      - name: Run unit tests
+        run: pnpm -r run test -- --reporter=verbose --passWithNoTests --exclude='**/*.integration.test.ts' --exclude='**/*.e2e.test.ts'
+
+  # ── 3. Integration tests (MongoDB required) ──────────
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MONGODB_URI: mongodb://localhost:27017/agentforge-test
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Run integration tests
+        run: pnpm -r run test -- --reporter=verbose --passWithNoTests --dir . 'integration'
+
+  # ── 4. E2E tests (full API + MongoDB) ─────────────────
+  test-e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MONGODB_URI: mongodb://localhost:27017/agentforge-test
+      NODE_ENV: test
+      PORT: 3000
+      API_VERSION: v1
+      LOG_LEVEL: error
+      FIREBASE_PROJECT_ID: test-project
+      ANTHROPIC_API_KEY: sk-ant-test
+      OPENAI_API_KEY: sk-test
+      GOOGLE_AI_API_KEY: test
+      LETTA_BASE_URL: http://localhost:8283
+      CORS_ORIGIN: http://localhost:3001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Run E2E tests
+        run: pnpm --filter @agentforge/api run test -- --reporter=verbose --passWithNoTests 'e2e'

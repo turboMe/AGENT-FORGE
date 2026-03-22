@@ -1,0 +1,33 @@
+{
+  "name": "@agentforge/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@agentforge/shared": "workspace:*",
+    "@agentforge/orchestrator": "workspace:*",
+    "@agentforge/skill-library": "workspace:*",
+    "@agentforge/llm-gateway": "workspace:*",
+    "@agentforge/prompt-architect": "workspace:*",
+    "@agentforge/memory": "workspace:*",
+    "fastify": "^5.2.1",
+    "fastify-plugin": "^5.0.1",
+    "firebase-admin": "^13.0.2",
+    "pino": "^9.6.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.0.0",
+    "tsx": "^4.19.2"
+  }
+}

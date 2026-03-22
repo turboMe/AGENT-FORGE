@@ -1,0 +1,98 @@
+services:
+  # ── MongoDB ──────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: agentforge-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: agentforge
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Letta (MemGPT) ──────────────────────────────────
+  letta:
+    image: letta/letta:latest
+    container_name: agentforge-letta
+    restart: unless-stopped
+    ports:
+      - "8283:8283"
+    volumes:
+      - letta-data:/root/.letta
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LETTA_API_KEY=${LETTA_API_KEY:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8283/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── AgentForge API ──────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentforge-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - API_VERSION=${API_VERSION:-v1}
+      # ── MongoDB (internal Docker network) ──
+      - MONGODB_URI=mongodb://mongodb:27017/agentforge
+      # ── Letta (internal Docker network) ────
+      - LETTA_BASE_URL=http://letta:8283
+      - LETTA_API_KEY=${LETTA_API_KEY:-}
+      # ── Firebase ───────────────────────────
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=/app/credentials/firebase-sa.json
+      - FIREBASE_SERVICE_ACCOUNT=${FIREBASE_SERVICE_ACCOUNT:-}
+      # ── LLM Providers ─────────────────────
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
+      # ── LLM Defaults ──────────────────────
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-auto}
+      - DEFAULT_QUALITY=${DEFAULT_QUALITY:-balanced}
+      - MAX_TOKENS_DEFAULT=${MAX_TOKENS_DEFAULT:-4096}
+      - TEMPERATURE_DEFAULT=${TEMPERATURE_DEFAULT:-0.7}
+      # ── Rate Limiting ─────────────────────
+      - RATE_LIMIT_FREE=${RATE_LIMIT_FREE:-10}
+      - RATE_LIMIT_PRO=${RATE_LIMIT_PRO:-30}
+      - RATE_LIMIT_TEAM=${RATE_LIMIT_TEAM:-60}
+      - RATE_LIMIT_AGENCY=${RATE_LIMIT_AGENCY:-120}
+      # ── CORS ───────────────────────────────
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}
+    volumes:
+      - ./credentials:/app/credentials:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      letta:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:3000/api/v1/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  mongo-data:
+  letta-data:

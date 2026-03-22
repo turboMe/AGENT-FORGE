@@ -1,0 +1,54 @@
+# ── Dependencies ────────────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ── Build output ────────────────────────────────────
+dist/
+build/
+.next/
+out/
+
+# ── Git ─────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── Environment & secrets ───────────────────────────
+.env
+.env.*
+credentials/
+*.pem
+*.key
+
+# ── IDE & OS ────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Docker volumes (local data) ─────────────────────
+mongo-data/
+letta-data/
+n8n-data/
+
+# ── Test & coverage ─────────────────────────────────
+coverage/
+.nyc_output/
+**/__tests__/
+
+# ── Logs ────────────────────────────────────────────
+*.log
+logs/
+
+# ── Misc ────────────────────────────────────────────
+.turbo/
+.cache/
+tmp/
+temp/
+*.tsbuildinfo
+.claude/
+docker/
+README.md
+LICENSE
