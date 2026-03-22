@@ -27,6 +27,7 @@ async function getFirebaseAdmin() {
   if (admin.default.apps.length === 0) {
     const projectId = process.env['FIREBASE_PROJECT_ID'];
     const serviceAccountPath = process.env['FIREBASE_SERVICE_ACCOUNT_PATH'];
+    const serviceAccountJson = process.env['FIREBASE_SERVICE_ACCOUNT_JSON'];
 
     if (serviceAccountPath) {
       const { readFileSync } = await import('node:fs');
@@ -37,8 +38,15 @@ async function getFirebaseAdmin() {
         credential: admin.default.credential.cert(serviceAccount),
         projectId,
       });
+    } else if (serviceAccountJson) {
+      // Cloud Run: SA credential passed as JSON string
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      admin.default.initializeApp({
+        credential: admin.default.credential.cert(serviceAccount),
+        projectId,
+      });
     } else {
-      // Cloud Run: uses default credentials
+      // Fallback: application default credentials
       admin.default.initializeApp({ projectId });
     }
   }
