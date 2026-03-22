@@ -33,13 +33,13 @@ async function getFirebaseAdmin() {
       const serviceAccount = JSON.parse(
         readFileSync(serviceAccountPath, 'utf-8'),
       );
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+      admin.default.initializeApp({
+        credential: admin.default.credential.cert(serviceAccount),
         projectId,
       });
     } else {
       // Cloud Run: uses default credentials
-      admin.initializeApp({ projectId });
+      admin.default.initializeApp({ projectId });
     }
   }
 
