@@ -2,16 +2,6 @@
   <h1 align="center">AGENT-FORGE</h1>
   <p align="center">Self-Evolving Agent Ecosystem</p>
   <p align="center">
-    <a href="#quickstart">Quickstart</a> •
-    <a href="#how-it-works">How It Works</a> •
-    <a href="#roadmap">Roadmap</a> •
-    <a href="#contributing">Contributing</a>
-  </p>
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <a href="https://github.com/turboMe/AGENT-FORGE/stargazers"><img src="https://img.shields.io/github/stars/turboMe/AGENT-FORGE?style=social" alt="Stars"></a>
 </p>
 
 ---
@@ -37,10 +27,8 @@ Agent-Forge replaces manual prompt engineering with an automated pipeline:
 5. **Saves everything** — next time, it's a cache hit, not a rebuild
 6. **Learns** — tracks what works, what doesn't, improves over time
 
-```
-First time:  "Write a cold email" → 30 seconds (creates agent)
-Second time: "Write another cold email" → 2 seconds (loads existing)
-```
+
+
 
 ## Key Features
 
@@ -108,10 +96,10 @@ pnpm dev
 ```bash
 curl -X POST http://localhost:3000/task \
   -H "Content-Type: application/json" \
-  -d '{"task": "Write a professional cold email to a restaurant owner"}'
+  -d '{"task": ""}'
 ```
 
-> **Note:** Agent-Forge is in early development. The API and features are evolving rapidly. Star the repo to stay updated.
+> **Note:** Agent-Forge is in early development. 
 
 ## Architecture
 
@@ -132,46 +120,18 @@ packages/
 - [x] Core orchestration engine
 - [x] Prompt Architect — automatic skill creation
 - [x] Skill library with search and indexing
-- [ ] Multi-model LLM gateway (Claude, GPT, local models)
-- [ ] REST API with authentication
+- [x] Multi-model LLM gateway (Claude, GPT, local models)
+- [x] REST API with authentication
 - [ ] n8n integration — tool-equipped automations
 - [ ] Web UI — chat interface, skill browser, workflow dashboard
-- [ ] Marketplace — share and discover community skills
 - [ ] Multi-agent collaboration
 - [ ] Full offline mode with local models (Ollama)
 
-## The Story Behind
 
-Agent-Forge is built by a solo founder who spent 15 years running 
-professional kitchens before teaching himself to code. But this 
-project isn't about cooking — it's about a lifelong obsession 
-with designing systems.
 
-A kitchen brigade, a software architecture, an AI agent network — 
-they're the same problem: how do you coordinate specialized units 
-to produce consistent, high-quality output under pressure?
-
-Agent-Forge is the answer I've been building toward for years — 
-a system that designs its own systems.
-
-## Contributing
-
-Agent-Forge is open source and we welcome contributions. Whether it's a bug fix, a new skill pattern, documentation, or a feature — we'd love your help.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please read our [Contributing Guide](CONTRIBUTING.md) for details on our code of conduct and development process.
-
-## License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
 <p align="center">
-  <sub>Built with obsession in Reykjavik, Iceland 🇮🇸</sub>
+  <sub>Built in Reykjavik, Iceland 🇮🇸</sub>
 </p>
