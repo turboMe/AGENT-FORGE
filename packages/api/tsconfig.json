@@ -5,6 +5,7 @@
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/__tests__"],
   "references": [
     { "path": "../shared" },
     { "path": "../orchestrator" },
