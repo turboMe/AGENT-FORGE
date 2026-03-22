@@ -72,7 +72,7 @@ describe('SkillIndexer', () => {
 
       const vector = indexer.buildSearchVector(skill);
       // Should not have double spaces from empty strings
-      expect(vector).not.toMatch(/  /);
+      expect(vector).not.toMatch(/ {2}/);
     });
   });
 

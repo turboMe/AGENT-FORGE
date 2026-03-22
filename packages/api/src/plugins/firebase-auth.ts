@@ -16,7 +16,7 @@ declare module 'fastify' {
 }
 
 // ── Firebase Admin lazy init ───────────────────────
-let firebaseAdmin: typeof import('firebase-admin') | null = null;
+let firebaseAdmin: typeof import('firebase-admin') | null = null; // eslint-disable-line @typescript-eslint/consistent-type-imports
 
 async function getFirebaseAdmin() {
   if (firebaseAdmin) return firebaseAdmin;

@@ -130,7 +130,7 @@ export class LLMGateway implements ILLMGateway {
           latencyMs: Date.now() - startTime,
           costEstimate: costRecord.cost,
         };
-      } catch (_fallbackError) {
+      } catch {
         // Both providers failed
         throw new LLMError(
           selection.provider,

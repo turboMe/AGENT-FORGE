@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Mock mongoose before importing the model
 vi.mock('mongoose', async () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
   return {
     ...actual,
