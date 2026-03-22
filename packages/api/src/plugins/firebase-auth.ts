@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { App } from 'firebase-admin/app';
 import fp from 'fastify-plugin';
 
 // ── User type augmentation ─────────────────────────
@@ -16,15 +17,14 @@ declare module 'fastify' {
 }
 
 // ── Firebase Admin lazy init ───────────────────────
-let firebaseAdmin: typeof import('firebase-admin') | null = null; // eslint-disable-line @typescript-eslint/consistent-type-imports
+let firebaseApp: App | null = null;
 
-async function getFirebaseAdmin() {
-  if (firebaseAdmin) return firebaseAdmin;
+async function getFirebaseApp(): Promise<App> {
+  if (firebaseApp) return firebaseApp;
 
-  const admin = await import('firebase-admin');
+  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
 
-  // Only init if no apps exist yet
-  if (admin.default.apps.length === 0) {
+  if (getApps().length === 0) {
     const projectId = process.env['FIREBASE_PROJECT_ID'];
     const serviceAccountPath = process.env['FIREBASE_SERVICE_ACCOUNT_PATH'];
     const serviceAccountJson = process.env['FIREBASE_SERVICE_ACCOUNT_JSON'];
@@ -34,31 +34,33 @@ async function getFirebaseAdmin() {
       const serviceAccount = JSON.parse(
         readFileSync(serviceAccountPath, 'utf-8'),
       );
-      admin.default.initializeApp({
-        credential: admin.default.credential.cert(serviceAccount),
+      firebaseApp = initializeApp({
+        credential: cert(serviceAccount),
         projectId,
       });
     } else if (serviceAccountJson) {
       // Cloud Run: SA credential passed as JSON string
       const serviceAccount = JSON.parse(serviceAccountJson);
-      admin.default.initializeApp({
-        credential: admin.default.credential.cert(serviceAccount),
+      firebaseApp = initializeApp({
+        credential: cert(serviceAccount),
         projectId,
       });
     } else {
       // Fallback: application default credentials
-      admin.default.initializeApp({ projectId });
+      firebaseApp = initializeApp({ projectId });
     }
+  } else {
+    firebaseApp = getApps()[0]!;
   }
 
-  firebaseAdmin = admin;
-  return admin;
+  return firebaseApp;
 }
 
 // ── Token verifier ─────────────────────────────────
 export async function verifyToken(token: string): Promise<AuthUser> {
-  const admin = await getFirebaseAdmin();
-  const decoded = await admin.default.auth().verifyIdToken(token);
+  await getFirebaseApp();
+  const { getAuth } = await import('firebase-admin/auth');
+  const decoded = await getAuth().verifyIdToken(token);
 
   return {
     uid: decoded.uid,
@@ -75,7 +77,7 @@ async function firebaseAuthPluginFn(app: FastifyInstance) {
 
   app.addHook('onReady', async () => {
     try {
-      await getFirebaseAdmin();
+      await getFirebaseApp();
       app.log.info('✅ Firebase Admin SDK initialized');
     } catch (err) {
       app.log.warn({ err }, '⚠️  Firebase Admin SDK init failed — auth will fail');
