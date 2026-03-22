@@ -31,6 +31,9 @@ FROM deps AS build
 COPY tsconfig.base.json ./
 COPY packages/ packages/
 
+# Exclude packages/web since its dependencies are not installed
+RUN rm -rf packages/web
+
 # Build all packages (project references resolve order)
 RUN pnpm run build
 
