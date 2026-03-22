@@ -61,6 +61,7 @@ services:
       - LETTA_API_KEY=${LETTA_API_KEY:-}
       # ── Firebase ───────────────────────────
       - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=/app/credentials/firebase-sa.json
       - FIREBASE_SERVICE_ACCOUNT=${FIREBASE_SERVICE_ACCOUNT:-}
       # ── LLM Providers ─────────────────────
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -78,6 +79,8 @@ services:
       - RATE_LIMIT_AGENCY=${RATE_LIMIT_AGENCY:-120}
       # ── CORS ───────────────────────────────
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}
+    volumes:
+      - ./credentials:/app/credentials:ro
     depends_on:
       mongodb:
         condition: service_healthy
