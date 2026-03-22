@@ -77,7 +77,7 @@ jobs:
             --max-instances=3
             --allow-unauthenticated
             --cpu-throttling
-            --startup-cpu-boost
+            --cpu-boost
 
       # ── Verify deployment ────────────────────────────
       - name: Verify deployment
