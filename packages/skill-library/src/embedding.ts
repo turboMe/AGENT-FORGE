@@ -1,10 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
 import type { ISkill } from '@agentforge/shared';
 import type { EmbeddingConfig } from './types.js';
 
 // ── Constants ───────────────────────────────────────
 
 const DEFAULT_EMBEDDING_MODEL = 'voyage-3';
+const VOYAGE_API_URL = 'https://api.voyageai.com/v1/embeddings';
 
 // ── API Response types ──────────────────────────────
 
@@ -15,11 +15,11 @@ interface VoyageEmbeddingResponse {
 // ── Service ─────────────────────────────────────────
 
 export class EmbeddingService {
-  private readonly client: Anthropic;
+  private readonly apiKey: string;
   private readonly model: string;
 
   constructor(config: EmbeddingConfig) {
-    this.client = new Anthropic({ apiKey: config.apiKey });
+    this.apiKey = config.apiKey;
     this.model = config.model ?? DEFAULT_EMBEDDING_MODEL;
   }
 
@@ -41,23 +41,30 @@ export class EmbeddingService {
   }
 
   /**
-   * Generate embedding vector for the given text.
-   * Uses Voyage AI via Anthropic SDK.
+   * Call Voyage AI embeddings API.
+   * Voyage AI accepts both Voyage API keys and Anthropic API keys.
    */
-  async generateEmbedding(text: string): Promise<number[]> {
-    // Voyage AI embeddings are accessed through Anthropic's API
-    const response = await (this.client as unknown as { post: (path: string, options: { body: unknown }) => Promise<unknown> }).post(
-      '/v1/embeddings',
-      {
-        body: {
-          model: this.model,
-          input: text,
-          input_type: 'document',
-        },
+  private async callVoyageApi(text: string, inputType: 'document' | 'query'): Promise<number[]> {
+    const response = await fetch(VOYAGE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
       },
-    ) as VoyageEmbeddingResponse;
+      body: JSON.stringify({
+        model: this.model,
+        input: text,
+        input_type: inputType,
+      }),
+    });
 
-    const embedding = response.data[0]?.embedding;
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Voyage AI API error ${response.status}: ${body}`);
+    }
+
+    const data = (await response.json()) as VoyageEmbeddingResponse;
+    const embedding = data.data[0]?.embedding;
 
     if (!embedding) {
       throw new Error('Failed to generate embedding: empty response');
@@ -67,26 +74,17 @@ export class EmbeddingService {
   }
 
   /**
+   * Generate embedding vector for the given text.
+   * Uses Voyage AI embeddings API (document input_type).
+   */
+  async generateEmbedding(text: string): Promise<number[]> {
+    return this.callVoyageApi(text, 'document');
+  }
+
+  /**
    * Generate embedding for a query (using 'query' input_type for asymmetric search).
    */
   async generateQueryEmbedding(text: string): Promise<number[]> {
-    const response = await (this.client as unknown as { post: (path: string, options: { body: unknown }) => Promise<unknown> }).post(
-      '/v1/embeddings',
-      {
-        body: {
-          model: this.model,
-          input: text,
-          input_type: 'query',
-        },
-      },
-    ) as VoyageEmbeddingResponse;
-
-    const embedding = response.data[0]?.embedding;
-
-    if (!embedding) {
-      throw new Error('Failed to generate query embedding: empty response');
-    }
-
-    return embedding;
+    return this.callVoyageApi(text, 'query');
   }
 }
