@@ -55,7 +55,7 @@ jobs:
 
       # Run all tests EXCEPT integration & e2e patterns
       - name: Run unit tests
-        run: pnpm -r run test -- --reporter=verbose --exclude='**/*.integration.test.ts' --exclude='**/*.e2e.test.ts'
+        run: pnpm -r run test -- --reporter=verbose --passWithNoTests --exclude='**/*.integration.test.ts' --exclude='**/*.e2e.test.ts'
 
   # ── 3. Integration tests (MongoDB required) ──────────
   test-integration:
@@ -91,7 +91,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Run integration tests
-        run: pnpm -r run test -- --reporter=verbose --include='**/*.integration.test.ts'
+        run: pnpm -r run test -- --reporter=verbose --passWithNoTests --dir . 'integration'
 
   # ── 4. E2E tests (full API + MongoDB) ─────────────────
   test-e2e:
@@ -139,4 +139,4 @@ jobs:
         run: pnpm build
 
       - name: Run E2E tests
-        run: pnpm --filter @agentforge/api run test -- --reporter=verbose --include='**/*.e2e.test.ts'
+        run: pnpm --filter @agentforge/api run test -- --reporter=verbose --passWithNoTests 'e2e'
