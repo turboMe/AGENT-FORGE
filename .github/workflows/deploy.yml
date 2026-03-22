@@ -78,6 +78,7 @@ jobs:
         run: |
           docker build \
             -f packages/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             -t ${{ steps.meta-web.outputs.tag_sha }} \
             -t ${{ steps.meta-web.outputs.tag_latest }} \
             .
@@ -101,6 +102,7 @@ jobs:
             --allow-unauthenticated
             --cpu-throttling
             --cpu-boost
+            --set-env-vars="MONGODB_URI=${{ secrets.MONGODB_URI }},LETTA_API_KEY=${{ secrets.LETTA_API_KEY }},LETTA_BASE_URL=${{ secrets.LETTA_BASE_URL }},FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }},FIREBASE_SERVICE_ACCOUNT=${{ secrets.FIREBASE_SERVICE_ACCOUNT }},ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}"
 
       # ── Deploy Web to Cloud Run ────────────────────────
       - name: Deploy Web to Cloud Run
