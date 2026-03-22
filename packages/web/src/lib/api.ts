@@ -5,8 +5,37 @@ import type { Credential, CreateCredentialPayload } from '@/types/credential';
 import type { UserProfile, UsageStats } from '@/types/settings';
 import type { MarketplaceSkill } from '@/types/marketplace';
 import type { Decision, AnalyticsOverview } from '@/types/analytics';
+import { auth } from './firebase';
 
 const API_BASE = '/api/v1';
+
+// ── Auth Header Helper ──────────────────────────────
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      const token = await user.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {
+    // Silently fail — API will return 401 and auth guard handles redirect
+  }
+  return headers;
+}
+
+async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const authHeaders = await getAuthHeaders();
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...authHeaders,
+      ...(init?.headers ?? {}),
+    },
+  });
+}
 
 // ── Skill API ───────────────────────────────────────
 
@@ -38,16 +67,15 @@ export async function fetchSkills(params: FetchSkillsParams = {}): Promise<Fetch
   if (params.pattern) query.set('pattern', params.pattern);
   if (params.sort) query.set('sort', params.sort);
 
-  const res = await fetch(`${API_BASE}/skills?${query.toString()}`);
+  const res = await authFetch(`${API_BASE}/skills?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch skills: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
 }
 
 export async function updateSkill(skillId: string, data: SkillUpdatePayload): Promise<Skill> {
-  const res = await fetch(`${API_BASE}/skills/${skillId}`, {
+  const res = await authFetch(`${API_BASE}/skills/${skillId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to update skill: ${res.status}`);
@@ -56,7 +84,7 @@ export async function updateSkill(skillId: string, data: SkillUpdatePayload): Pr
 }
 
 export async function deleteSkill(skillId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/skills/${skillId}`, {
+  const res = await authFetch(`${API_BASE}/skills/${skillId}`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error(`Failed to delete skill: ${res.status}`);
@@ -82,9 +110,10 @@ export function streamTask(
 
   (async () => {
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/tasks/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ task: prefixedTask, options }),
         signal: controller.signal,
       });
@@ -203,31 +232,31 @@ export async function fetchWorkflows(params: FetchWorkflowsParams = {}): Promise
   if (params.status) query.set('status', params.status);
   if (params.search) query.set('search', params.search);
 
-  const res = await fetch(`${API_BASE}/workflows?${query.toString()}`);
+  const res = await authFetch(`${API_BASE}/workflows?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch workflows: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
 }
 
 export async function fetchWorkflowRuns(workflowId: string, limit = 20): Promise<WorkflowRun[]> {
-  const res = await fetch(`${API_BASE}/workflows/${workflowId}/runs?limit=${limit}`);
+  const res = await authFetch(`${API_BASE}/workflows/${workflowId}/runs?limit=${limit}`);
   if (!res.ok) throw new Error(`Failed to fetch workflow runs: ${res.status}`);
   const json = await res.json();
   return json.data?.runs ?? [];
 }
 
 export async function pauseWorkflow(workflowId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/workflows/${workflowId}/pause`, { method: 'PUT' });
+  const res = await authFetch(`${API_BASE}/workflows/${workflowId}/pause`, { method: 'PUT' });
   if (!res.ok) throw new Error(`Failed to pause workflow: ${res.status}`);
 }
 
 export async function resumeWorkflow(workflowId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/workflows/${workflowId}/resume`, { method: 'PUT' });
+  const res = await authFetch(`${API_BASE}/workflows/${workflowId}/resume`, { method: 'PUT' });
   if (!res.ok) throw new Error(`Failed to resume workflow: ${res.status}`);
 }
 
 export async function deleteWorkflow(workflowId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/workflows/${workflowId}`, { method: 'DELETE' });
+  const res = await authFetch(`${API_BASE}/workflows/${workflowId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`Failed to delete workflow: ${res.status}`);
 }
 
@@ -235,9 +264,8 @@ export async function updateWorkflowParams(
   workflowId: string,
   parameters: WorkflowParameter[],
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/workflows/${workflowId}`, {
+  const res = await authFetch(`${API_BASE}/workflows/${workflowId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ parameters }),
   });
   if (!res.ok) throw new Error(`Failed to update workflow params: ${res.status}`);
@@ -246,16 +274,15 @@ export async function updateWorkflowParams(
 // ── Credential API ───────────────────────────────────
 
 export async function fetchCredentials(): Promise<Credential[]> {
-  const res = await fetch(`${API_BASE}/credentials`);
+  const res = await authFetch(`${API_BASE}/credentials`);
   if (!res.ok) throw new Error(`Failed to fetch credentials: ${res.status}`);
   const json = await res.json();
   return json.data?.credentials ?? [];
 }
 
 export async function createCredential(data: CreateCredentialPayload): Promise<Credential> {
-  const res = await fetch(`${API_BASE}/credentials`, {
+  const res = await authFetch(`${API_BASE}/credentials`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to create credential: ${res.status}`);
@@ -264,7 +291,7 @@ export async function createCredential(data: CreateCredentialPayload): Promise<C
 }
 
 export async function deleteCredential(credentialId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/credentials/${credentialId}`, {
+  const res = await authFetch(`${API_BASE}/credentials/${credentialId}`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error(`Failed to delete credential: ${res.status}`);
@@ -273,23 +300,22 @@ export async function deleteCredential(credentialId: string): Promise<void> {
 // ── Settings API ─────────────────────────────────────
 
 export async function fetchProfile(): Promise<UserProfile> {
-  const res = await fetch(`${API_BASE}/settings/profile`);
+  const res = await authFetch(`${API_BASE}/settings/profile`);
   if (!res.ok) throw new Error(`Failed to fetch profile: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
 }
 
 export async function updateProfile(data: Partial<UserProfile>): Promise<void> {
-  const res = await fetch(`${API_BASE}/settings/profile`, {
+  const res = await authFetch(`${API_BASE}/settings/profile`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to update profile: ${res.status}`);
 }
 
 export async function fetchUsage(): Promise<UsageStats> {
-  const res = await fetch(`${API_BASE}/settings/usage`);
+  const res = await authFetch(`${API_BASE}/settings/usage`);
   if (!res.ok) throw new Error(`Failed to fetch usage: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
@@ -325,14 +351,14 @@ export async function fetchMarketplaceSkills(
   if (params.category) query.set('category', params.category);
   if (params.sort) query.set('sort', params.sort);
 
-  const res = await fetch(`${API_BASE}/marketplace?${query.toString()}`);
+  const res = await authFetch(`${API_BASE}/marketplace?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch marketplace: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
 }
 
 export async function installMarketplaceSkill(skillId: string): Promise<{ installed: boolean }> {
-  const res = await fetch(`${API_BASE}/marketplace/${skillId}/install`, {
+  const res = await authFetch(`${API_BASE}/marketplace/${skillId}/install`, {
     method: 'POST',
   });
   if (!res.ok) throw new Error(`Failed to install skill: ${res.status}`);
@@ -374,14 +400,14 @@ export async function fetchDecisions(
   if (params.dateTo) query.set('to', params.dateTo);
   if (params.success !== undefined) query.set('success', String(params.success));
 
-  const res = await fetch(`${API_BASE}/decisions?${query.toString()}`);
+  const res = await authFetch(`${API_BASE}/decisions?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch decisions: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
 }
 
 export async function fetchAnalyticsOverview(): Promise<AnalyticsOverview> {
-  const res = await fetch(`${API_BASE}/analytics/overview`);
+  const res = await authFetch(`${API_BASE}/analytics/overview`);
   if (!res.ok) throw new Error(`Failed to fetch analytics: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;

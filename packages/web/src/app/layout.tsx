@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { SidebarLayout } from "@/components/sidebar-layout";
+import { AuthProvider } from "@/lib/auth";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -21,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <SidebarLayout>{children}</SidebarLayout>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

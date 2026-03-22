@@ -342,3 +342,43 @@
   background: hsla(240, 3.7%, 15.9%, 0.3);
 }
 
+/* ── Landing page glow animation ────────────────── */
+.landing-glow {
+  animation: landing-glow 8s ease-in-out infinite;
+}
+
+@keyframes landing-glow {
+  0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.8; transform: translateX(-50%) scale(1.05); }
+}
+
+/* ── Landing floating element ───────────────────── */
+.landing-float {
+  animation: landing-float 3s ease-in-out infinite;
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* ── Auth card glass border glow ────────────────── */
+.auth-card-glow {
+  position: relative;
+}
+
+.auth-card-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 1.125rem;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), transparent, rgba(99, 102, 241, 0.2));
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.auth-card-glow:focus-within::before {
+  opacity: 1;
+}
+

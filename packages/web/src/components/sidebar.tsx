@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   MessageSquare,
   Library,
@@ -13,9 +13,12 @@ import {
   X,
   Sparkles,
   Store,
+  LogOut,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 
 const navigation = [
   { name: "Chat", href: "/", icon: MessageSquare },
@@ -29,7 +32,14 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  async function handleLogout() {
+    await logout();
+    router.push("/landing");
+  }
 
   return (
     <>
@@ -93,9 +103,30 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="border-t border-sidebar-border px-6 py-4">
-          <p className="text-xs text-sidebar-foreground/50">
+        {/* Footer — user + logout */}
+        <div className="border-t border-sidebar-border px-4 py-4 space-y-3">
+          {user && (
+            <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/20 to-indigo-500/20 text-violet-400">
+                <User className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-sidebar-foreground/90">
+                  {user.email ?? "User"}
+                </p>
+                <p className="text-[10px] text-sidebar-foreground/40">Free Plan</p>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </button>
+          <p className="px-2 text-[10px] text-sidebar-foreground/30">
             AgentForge v0.1.0
           </p>
         </div>
