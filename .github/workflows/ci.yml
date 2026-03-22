@@ -52,6 +52,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
 
       # Run all tests EXCEPT integration & e2e patterns
       - name: Run unit tests
@@ -89,6 +90,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
 
       - name: Run integration tests
         run: pnpm -r run test -- --reporter=verbose --passWithNoTests --dir . 'integration'
