@@ -58,7 +58,7 @@ async function getFirebaseAdmin() {
 // ── Token verifier ─────────────────────────────────
 export async function verifyToken(token: string): Promise<AuthUser> {
   const admin = await getFirebaseAdmin();
-  const decoded = await admin.auth().verifyIdToken(token);
+  const decoded = await admin.default.auth().verifyIdToken(token);
 
   return {
     uid: decoded.uid,
