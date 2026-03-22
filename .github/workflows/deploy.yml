@@ -8,6 +8,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-production
@@ -71,11 +72,12 @@ jobs:
           image: ${{ steps.meta.outputs.tag_sha }}
           region: ${{ env.REGION }}
           flags: |
-            --port=3000
             --memory=512Mi
             --min-instances=0
             --max-instances=3
             --allow-unauthenticated
+            --cpu-throttling
+            --startup-cpu-boost
 
       # ── Verify deployment ────────────────────────────
       - name: Verify deployment
@@ -84,4 +86,4 @@ jobs:
             --region=${{ env.REGION }} \
             --format='value(status.url)')
           echo "🚀 Deployed to: ${URL}"
-          curl -sf "${URL}/api/v1/health/live" || echo "⚠️  Health check pending (service may need env vars configured)"
+          curl -sf "${URL}/api/v1/health/live" && echo " ✅ Health check passed" || echo " ⚠️  Health check pending"
