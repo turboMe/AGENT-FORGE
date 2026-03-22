@@ -66,3 +66,101 @@
   --color-input: hsl(240 3.7% 15.9%);
   --color-ring: hsl(240 4.9% 83.9%);
 }
+
+/* ── Pipeline pulse animation ────────────────────── */
+.pipeline-pulse {
+  animation: pipeline-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pipeline-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── Typing indicator dots ───────────────────────── */
+.typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: hsl(240 5% 64.9%);
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+/* ── Markdown prose for dark mode ────────────────── */
+.prose.prose-invert {
+  --tw-prose-body: hsl(0 0% 90%);
+  --tw-prose-headings: hsl(0 0% 98%);
+  --tw-prose-bold: hsl(0 0% 98%);
+  --tw-prose-links: hsl(263 70% 70%);
+  --tw-prose-counters: hsl(240 5% 64.9%);
+  --tw-prose-bullets: hsl(240 5% 64.9%);
+  --tw-prose-hr: hsl(240 3.7% 15.9%);
+  --tw-prose-quotes: hsl(240 5% 64.9%);
+  --tw-prose-code: hsl(263 70% 75%);
+  --tw-prose-pre-code: hsl(0 0% 90%);
+  --tw-prose-pre-bg: hsl(240 10% 6%);
+}
+
+.prose pre {
+  border-radius: 0.75rem;
+  border: 1px solid hsl(240 3.7% 15.9%);
+}
+
+.prose code:not(pre code) {
+  background: hsl(240 3.7% 15.9%);
+  padding: 0.15em 0.4em;
+  border-radius: 0.375rem;
+  font-size: 0.85em;
+}
+
+/* ── Animate-in utilities ────────────────────────── */
+.animate-in {
+  animation: animate-in 0.2s ease-out;
+}
+
+@keyframes animate-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in-from-bottom-2 {
+  animation: slide-in-bottom 0.2s ease-out;
+}
+
+@keyframes slide-in-bottom {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.slide-in-from-top-2 {
+  animation: slide-in-top 0.3s ease-out;
+}
+
+@keyframes slide-in-top {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.slide-in-from-left-1 {
+  animation: slide-in-left 0.2s ease-out;
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-4px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.fade-in-0 {
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

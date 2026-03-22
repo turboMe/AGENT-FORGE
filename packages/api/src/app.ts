@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { firebaseAuthPlugin } from './plugins/firebase-auth.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import { responseEnvelopePlugin } from './plugins/response-envelope.js';
@@ -22,6 +23,11 @@ export async function buildServer() {
   });
 
   // ── Plugins ──────────────────────────────────────
+  await app.register(cors, {
+    origin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
   await app.register(firebaseAuthPlugin);
   await app.register(errorHandlerPlugin);
   await app.register(responseEnvelopePlugin);
