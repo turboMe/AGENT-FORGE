@@ -105,7 +105,7 @@ Read `references/FRAMEWORKS.md` for the email framework library before writing.
 
 ---
 
-## Example 3: Custom Agent (.claude/agents/)
+## Example 3: Custom Agent (.agents/agents/)
 
 **User request**: "I need an agent that reviews my TypeScript code for performance issues"
 

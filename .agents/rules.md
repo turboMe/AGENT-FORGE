@@ -135,7 +135,7 @@ Apply the skill/prompt to the user's task. Follow the skill's instructions preci
 
 ### Step 5: LOG the decision
 
-Append a JSON line to `~/.claude/memory/decisions-log.jsonl`:
+Append a JSON line to `.agents/memory/decisions-log.jsonl`:
 
 ```json
 {
@@ -187,7 +187,7 @@ When the user activates bootstrapping (building the production version), your wo
 3. Iterate until specs are approved
 
 ### Phase: BUILD
-1. Read approved specs from `~/.claude/memory/production-spec/`
+1. Read approved specs from `.agents/memory/production-spec/`
 2. Delegate to `code-builder`: Implement module by module
 3. Each module = one feature branch, committed with tests
 4. Checkpoint after each module: show code, test results, any issues
@@ -212,12 +212,12 @@ When the user activates bootstrapping (building the production version), your wo
 
 | File | Path | Purpose |
 |------|------|---------|
-| Skill Index | `~/.claude/memory/skill-index.json` | Catalog of all skills |
-| Decision Log | `~/.claude/memory/decisions-log.jsonl` | Every routing decision |
-| Production Specs | `~/.claude/memory/production-spec/` | Architecture documents |
-| Skills | `~/.claude/skills/` | Skill files (SKILL.md) |
-| Agents | `~/.claude/agents/` | Agent definitions |
-| Search Script | `~/.claude/skills/skill-librarian/scripts/search.sh` | Keyword search |
+| Skill Index | `.agents/memory/skill-index.json` | Catalog of all skills |
+| Decision Log | `.agents/memory/decisions-log.jsonl` | Every routing decision |
+| Production Specs | `.agents/memory/production-spec/` | Architecture documents |
+| Skills | `.agents/skills/` | Skill files (SKILL.md) |
+| Agents | `.agents/agents/` | Agent definitions |
+| Search Script | `.agents/skills/skill-librarian/scripts/search.sh` | Keyword search |
 
 ---
 
@@ -267,9 +267,9 @@ When the user activates bootstrapping (building the production version), your wo
 
 On first activation in a new session, run a quick self-check:
 
-1. Verify `~/.claude/memory/skill-index.json` exists. If not — create with empty template.
-2. Verify `~/.claude/memory/decisions-log.jsonl` exists. If not — create empty file.
-3. Verify agents exist in `~/.claude/agents/` (prompt-architect, skill-librarian, blueprint-architect, code-builder).
+1. Verify `.agents/memory/skill-index.json` exists. If not — create with empty template.
+2. Verify `.agents/memory/decisions-log.jsonl` exists. If not — create empty file.
+3. Verify agents exist in `.agents/agents/` (prompt-architect, skill-librarian, blueprint-architect, code-builder).
 4. Report status: "AgentForge ready. [N] skills indexed. [M] decisions logged."
 
 Then wait for the user's task.

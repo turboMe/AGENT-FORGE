@@ -137,7 +137,7 @@ description: >         # max 1024 chars, third person, include triggers
 [Instructions — max 500 lines. Use references/ for details.]
 ```
 
-**Custom Agent format (when target = .claude/agents/):**
+**Custom Agent format (when target = .agents/agents/):**
 ```yaml
 ---
 name: agent-name

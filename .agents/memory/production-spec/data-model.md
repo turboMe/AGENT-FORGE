@@ -460,7 +460,7 @@ The current PoC uses flat files:
 // migrate-poc-to-production.ts
 async function migratePoCData(tenantId: ObjectId) {
   // 1. Parse skill-index.json
-  const index = JSON.parse(await readFile('.claude/memory/skill-index.json', 'utf8'));
+  const index = JSON.parse(await readFile('.agents/memory/skill-index.json', 'utf8'));
   
   for (const skill of index.skills) {
     // 2. Read SKILL.md, parse YAML frontmatter + markdown body
@@ -498,7 +498,7 @@ async function migratePoCData(tenantId: ObjectId) {
   }
   
   // 4. Parse decisions-log.jsonl → decisions collection
-  const logLines = (await readFile('.claude/memory/decisions-log.jsonl', 'utf8'))
+  const logLines = (await readFile('.agents/memory/decisions-log.jsonl', 'utf8'))
     .split('\n').filter(Boolean).map(JSON.parse);
   
   for (const decision of logLines) {

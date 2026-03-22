@@ -81,7 +81,7 @@ Claude 4.x models pay extreme attention to example details. Ensure:
 
 ## Custom Agent Specific
 
-- Store in `.claude/agents/` (project) or `~/.claude/agents/` (global)
+- Store in `.agents/agents/` (project) or `~/.agents/agents/` (global)
 - `tools` field: scope to minimum needed (Read, Write, Edit, Bash, Glob, Grep)
 - `model` field: match complexity to model tier
 - Description drives auto-delegation — write it like a job posting

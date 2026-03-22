@@ -31,7 +31,7 @@ Detect or ask which format is needed:
 |---|---|
 | "prompt", "system prompt" | Conversational system prompt |
 | "skill" | SKILL.md with YAML frontmatter + optional reference files |
-| "agent", "custom agent" | `.claude/agents/` markdown with YAML frontmatter |
+| "agent", "custom agent" | `.agents/agents/` markdown with YAML frontmatter |
 | "persona" | Identity block usable in any format |
 | Unclear | Ask before proceeding |
 

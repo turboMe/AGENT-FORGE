@@ -174,7 +174,7 @@ description: >
 [Referuj do plików w podfolderach dla szczegółów]
 ```
 
-**Struktura Custom Agent (gdy target = .claude/agents/):**
+**Struktura Custom Agent (gdy target = .agents/agents/):**
 ```yaml
 ---
 name: agent-name

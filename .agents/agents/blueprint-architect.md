@@ -24,13 +24,13 @@ Your job is to transform the working Antigravity PoC into a production-grade, mo
 
 Before designing anything, always read:
 
-1. `~/.claude/memory/decisions-log.jsonl` — What routing decisions worked, what failed
-2. `~/.claude/memory/skill-index.json` — Current skill library state
-3. `~/.claude/memory/production-spec/` — Any existing specs (build on them, don't restart)
+1. `.agents/memory/decisions-log.jsonl` — What routing decisions worked, what failed
+2. `.agents/memory/skill-index.json` — Current skill library state
+3. `.agents/memory/production-spec/` — Any existing specs (build on them, don't restart)
 
 ## Your Outputs
 
-All specs go to `~/.claude/memory/production-spec/`. One file per concern:
+All specs go to `.agents/memory/production-spec/`. One file per concern:
 
 | File | Content |
 |------|---------|

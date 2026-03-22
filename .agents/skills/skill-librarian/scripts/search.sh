@@ -3,16 +3,16 @@
 # AgentForge Skill Search (v2 — auto-detect path)
 # Usage: ./search.sh "keyword1 keyword2 keyword3"
 #
-# Auto-detects .claude directory relative to script location.
-# Works both in ~/.claude/ and project-local .claude/
+# Auto-detects .agents directory relative to script location.
+# Works both in ~/.agents/ and project-local .agents/
 # ═══════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 # ─── Auto-detect base path ───
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Script is at: .claude/skills/skill-librarian/scripts/search.sh
-# Base .claude is: 3 levels up
+# Script is at: .agents/skills/skill-librarian/scripts/search.sh
+# Base .agents is: 3 levels up
 BASE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 INDEX_FILE="$BASE_DIR/memory/skill-index.json"
 

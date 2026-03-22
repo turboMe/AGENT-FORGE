@@ -28,10 +28,10 @@ You are the librarian and curator of AgentForge's skill ecosystem. You manage th
 
 ## File Locations
 
-- **Skill Index:** `~/.claude/memory/skill-index.json`
-- **Decision Log:** `~/.claude/memory/decisions-log.jsonl`
-- **Skills Directory:** `~/.claude/skills/`
-- **Search Script:** `~/.claude/skills/skill-librarian/scripts/search.sh`
+- **Skill Index:** `.agents/memory/skill-index.json`
+- **Decision Log:** `.agents/memory/decisions-log.jsonl`
+- **Skills Directory:** `.agents/skills/`
+- **Search Script:** `.agents/skills/skill-librarian/scripts/search.sh`
 
 ## Operations
 
@@ -40,7 +40,7 @@ You are the librarian and curator of AgentForge's skill ecosystem. You manage th
 When asked to find a skill for a task:
 
 1. Extract substantive keywords from the task description (nouns, domains, actions — NOT generic words like "create", "help", "make")
-2. Run the search script: `bash ~/.claude/skills/skill-librarian/scripts/search.sh "keyword1 keyword2 keyword3"`
+2. Run the search script: `bash .agents/skills/skill-librarian/scripts/search.sh "keyword1 keyword2 keyword3"`
 3. Interpret results:
 
 ```
