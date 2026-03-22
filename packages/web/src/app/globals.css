@@ -164,3 +164,66 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── Skill card hover glow ───────────────────────── */
+.skill-card-glow {
+  position: relative;
+}
+
+.skill-card-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  opacity: 0;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    hsla(263, 70%, 60%, 0.06),
+    transparent 40%
+  );
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.skill-card-glow:hover::after {
+  opacity: 1;
+}
+
+/* ── Scrollbar styling ───────────────────────────── */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(240 3.7% 20%);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(240 3.7% 30%);
+}
+
+/* ── Staggered grid entrance ─────────────────────── */
+.stagger-in > * {
+  animation: stagger-item 0.3s ease-out both;
+}
+
+.stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-in > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-in > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-in > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-in > *:nth-child(7) { animation-delay: 300ms; }
+.stagger-in > *:nth-child(8) { animation-delay: 350ms; }
+.stagger-in > *:nth-child(9) { animation-delay: 400ms; }
+
+@keyframes stagger-item {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+

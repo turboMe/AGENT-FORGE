@@ -124,4 +124,50 @@ export async function skillRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // ── PUT /skills/:skillId ──────────────────────────
+  app.put<{ Params: SkillParams; Body: Partial<CreateSkillBody> }>(
+    '/skills/:skillId',
+    {
+      preHandler: [authenticate],
+    },
+    async (request, reply) => {
+      const { skillId } = request.params;
+      const updates = request.body;
+
+      request.log.info(
+        { tenantId: request.user.tenantId, skillId, fields: Object.keys(updates) },
+        'Updating skill',
+      );
+
+      // Stub: In production, calls SkillRepository.update()
+      return reply.success({
+        id: skillId,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+  );
+
+  // ── DELETE /skills/:skillId ───────────────────────
+  app.delete<{ Params: SkillParams }>(
+    '/skills/:skillId',
+    {
+      preHandler: [authenticate],
+    },
+    async (request, reply) => {
+      const { skillId } = request.params;
+
+      request.log.info(
+        { tenantId: request.user.tenantId, skillId },
+        'Deleting skill (soft)',
+      );
+
+      // Stub: In production, calls SkillRepository.softDelete()
+      return reply.success({
+        id: skillId,
+        deletedAt: new Date().toISOString(),
+      });
+    },
+  );
 }

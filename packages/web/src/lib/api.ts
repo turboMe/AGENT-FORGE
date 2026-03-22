@@ -1,6 +1,61 @@
 import type { SSEEvent, PipelineStepName, PipelineStepStatus } from '@/types/chat';
+import type { Skill, SkillUpdatePayload } from '@/types/skill';
 
 const API_BASE = '/api/v1';
+
+// ── Skill API ───────────────────────────────────────
+
+export interface FetchSkillsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  domain?: string;
+  pattern?: string;
+  sort?: string;
+}
+
+export interface FetchSkillsResponse {
+  skills: Skill[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchSkills(params: FetchSkillsParams = {}): Promise<FetchSkillsResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.search) query.set('search', params.search);
+  if (params.domain) query.set('domain', params.domain);
+  if (params.pattern) query.set('pattern', params.pattern);
+  if (params.sort) query.set('sort', params.sort);
+
+  const res = await fetch(`${API_BASE}/skills?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch skills: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function updateSkill(skillId: string, data: SkillUpdatePayload): Promise<Skill> {
+  const res = await fetch(`${API_BASE}/skills/${skillId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update skill: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function deleteSkill(skillId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/skills/${skillId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to delete skill: ${res.status}`);
+}
 
 /**
  * Stream a task through the AgentForge pipeline via SSE.
