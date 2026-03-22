@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-03-22T13:13:47Z",
+  "total_skills": 4,
+  "skills": [
+    {
+      "id": "prompt-architect-001",
+      "name": "prompt-architect",
+      "type": "skill",
+      "domain": ["meta", "prompt-engineering", "skill-creation", "agent-design"],
+      "pattern": "creator",
+      "persona_summary": "Elite prompt/skill/agent creator with artist-engineer mindset",
+      "description": "Diagnoses user needs and crafts precision-engineered prompts, skills, and custom agents for any task",
+      "tags": ["create-prompt", "build-skill", "make-agent", "write-instructions", "persona", "optimize-prompt", "design-workflow"],
+      "file_path": ".agents/skills/prompt-architect/SKILL.md",
+      "created_at": "2026-03-22T00:00:00Z",
+      "use_count": 1,
+      "avg_satisfaction": null,
+      "last_used": "2026-03-21T12:58:46Z"
+    },
+    {
+      "id": "cold-outreach-writer-001",
+      "name": "cold-outreach-writer",
+      "type": "skill",
+      "domain": ["sales", "email", "HoReCa", "cold-outreach", "FoodTech"],
+      "pattern": "negotiator+creator",
+      "persona_summary": "B2B sales copywriter specialized in HoReCa and FoodTech cold outreach with 35%+ open rates",
+      "description": "Generates personalized cold outreach emails for B2B and B2B2C contexts, optimized for open rate and response rate. Specialized in HoReCa, FoodTech, and SaaS sales.",
+      "tags": ["cold-email", "outreach", "prospecting", "sales", "restaurant", "email", "pitch", "lead-generation", "HoReCa"],
+      "file_path": ".agents/skills/cold-outreach-writer/SKILL.md",
+      "created_at": "2026-03-21T12:58:46Z",
+      "use_count": 1,
+      "avg_satisfaction": null,
+      "last_used": "2026-03-21T12:58:46Z"
+    },
+    {
+      "id": "food-cost-analyst-001",
+      "name": "food-cost-analyst",
+      "type": "skill",
+      "domain": ["restaurant", "finance", "menu-engineering", "HoReCa", "food-cost"],
+      "pattern": "analyst",
+      "persona_summary": "Senior restaurant financial controller specializing in food cost optimization and menu engineering",
+      "description": "Analyzes restaurant menu food cost ratios, identifies high-cost items, and proposes concrete optimization strategies to improve margins.",
+      "tags": ["food-cost", "menu-analysis", "cost-ratio", "margin", "restaurant", "profitability", "recipe-costing", "menu-engineering"],
+      "file_path": ".agents/skills/food-cost-analyst/SKILL.md",
+      "created_at": "2026-03-21T13:18:31Z",
+      "use_count": 1,
+      "avg_satisfaction": null,
+      "last_used": "2026-03-21T13:18:31Z"
+    },
+    {
+      "id": "business-coach-it-hospitality-001",
+      "name": "business-coach-it-hospitality",
+      "type": "skill",
+      "domain": ["business-coaching", "IT", "hospitality", "entrepreneurship", "personal-branding", "motivation"],
+      "pattern": "advisor+analyst",
+      "persona_summary": "Brutally honest business strategist for IT×Hospitality sectors, specializing in idea validation, brand building for introverts, and financial freedom roadmapping",
+      "description": "Elite AI business coach specialized in IT and Hospitality sectors. Validates ideas, conducts market research, identifies niches, builds brands for introverts/non-public people, and guides entrepreneurs to financial freedom with unconditional honesty.",
+      "tags": ["business-coaching", "IT", "hospitality", "startup", "niche-research", "brand-building", "introvert", "idea-validation", "go-to-market", "financial-freedom", "mentor", "HoReCa", "SaaS", "FoodTech"],
+      "file_path": ".agents/skills/business-coach-it-hospitality/SKILL.md",
+      "created_at": "2026-03-22T13:13:47Z",
+      "use_count": 0,
+      "avg_satisfaction": null,
+      "last_used": null
+    }
+  ]
+}

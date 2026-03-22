@@ -30,6 +30,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/.next/**',
       '**/build/**',
+      '**/next-env.d.ts',
     ],
   },
 );

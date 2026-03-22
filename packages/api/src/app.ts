@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { firebaseAuthPlugin } from './plugins/firebase-auth.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import { responseEnvelopePlugin } from './plugins/response-envelope.js';
@@ -6,6 +7,11 @@ import { healthRoutes } from './routes/health.js';
 import { taskRoutes } from './routes/tasks.js';
 import { skillRoutes } from './routes/skills.js';
 import { decisionRoutes } from './routes/decisions.js';
+import { workflowRoutes } from './routes/workflows.js';
+import { credentialRoutes } from './routes/credentials.js';
+import { settingsRoutes } from './routes/settings.js';
+import { marketplaceRoutes } from './routes/marketplace.js';
+import { analyticsRoutes } from './routes/analytics.js';
 
 export async function buildServer() {
   const app = Fastify({
@@ -22,6 +28,11 @@ export async function buildServer() {
   });
 
   // ── Plugins ──────────────────────────────────────
+  await app.register(cors, {
+    origin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
   await app.register(firebaseAuthPlugin);
   await app.register(errorHandlerPlugin);
   await app.register(responseEnvelopePlugin);
@@ -31,6 +42,11 @@ export async function buildServer() {
   await app.register(taskRoutes, { prefix: '/api/v1' });
   await app.register(skillRoutes, { prefix: '/api/v1' });
   await app.register(decisionRoutes, { prefix: '/api/v1' });
+  await app.register(workflowRoutes, { prefix: '/api/v1' });
+  await app.register(credentialRoutes, { prefix: '/api/v1' });
+  await app.register(settingsRoutes, { prefix: '/api/v1' });
+  await app.register(marketplaceRoutes, { prefix: '/api/v1' });
+  await app.register(analyticsRoutes, { prefix: '/api/v1' });
 
   return app;
 }

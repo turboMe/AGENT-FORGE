@@ -14,12 +14,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentforge/shared": "workspace:*",
-    "@agentforge/orchestrator": "workspace:*",
-    "@agentforge/skill-library": "workspace:*",
     "@agentforge/llm-gateway": "workspace:*",
-    "@agentforge/prompt-architect": "workspace:*",
     "@agentforge/memory": "workspace:*",
+    "@agentforge/orchestrator": "workspace:*",
+    "@agentforge/prompt-architect": "workspace:*",
+    "@agentforge/shared": "workspace:*",
+    "@agentforge/skill-library": "workspace:*",
+    "@fastify/cors": "^11.2.0",
     "fastify": "^5.2.1",
     "fastify-plugin": "^5.0.1",
     "firebase-admin": "^13.0.2",

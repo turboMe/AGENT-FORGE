@@ -16,7 +16,8 @@ concurrency:
 
 env:
   REGION: europe-north1
-  SERVICE: agentforge-api
+  SERVICE_API: agentforge-api
+  SERVICE_WEB: agentforge-web
   REGISTRY: europe-north1-docker.pkg.dev
 
 jobs:
@@ -43,33 +44,56 @@ jobs:
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
 
-      # ── Build & Push Docker image ────────────────────
-      - name: Set image tag
-        id: meta
+      # ── Build & Push API Docker image ─────────────────
+      - name: Set API image tag
+        id: meta-api
         run: |
           IMAGE=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/agentforge/api
           echo "image=${IMAGE}" >> $GITHUB_OUTPUT
           echo "tag_sha=${IMAGE}:${{ github.sha }}" >> $GITHUB_OUTPUT
           echo "tag_latest=${IMAGE}:latest" >> $GITHUB_OUTPUT
 
-      - name: Build Docker image
+      - name: Build API Docker image
         run: |
           docker build \
-            -t ${{ steps.meta.outputs.tag_sha }} \
-            -t ${{ steps.meta.outputs.tag_latest }} \
+            -t ${{ steps.meta-api.outputs.tag_sha }} \
+            -t ${{ steps.meta-api.outputs.tag_latest }} \
             .
 
-      - name: Push Docker image
+      - name: Push API Docker image
         run: |
-          docker push ${{ steps.meta.outputs.tag_sha }}
-          docker push ${{ steps.meta.outputs.tag_latest }}
+          docker push ${{ steps.meta-api.outputs.tag_sha }}
+          docker push ${{ steps.meta-api.outputs.tag_latest }}
 
-      # ── Deploy to Cloud Run ──────────────────────────
-      - name: Deploy to Cloud Run
+      # ── Build & Push Web Docker image ─────────────────
+      - name: Set Web image tag
+        id: meta-web
+        run: |
+          IMAGE=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/agentforge/web
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
+          echo "tag_sha=${IMAGE}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "tag_latest=${IMAGE}:latest" >> $GITHUB_OUTPUT
+
+      - name: Build Web Docker image
+        run: |
+          docker build \
+            -f packages/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+            -t ${{ steps.meta-web.outputs.tag_sha }} \
+            -t ${{ steps.meta-web.outputs.tag_latest }} \
+            .
+
+      - name: Push Web Docker image
+        run: |
+          docker push ${{ steps.meta-web.outputs.tag_sha }}
+          docker push ${{ steps.meta-web.outputs.tag_latest }}
+
+      # ── Deploy API to Cloud Run ────────────────────────
+      - name: Deploy API to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ env.SERVICE }}
-          image: ${{ steps.meta.outputs.tag_sha }}
+          service: ${{ env.SERVICE_API }}
+          image: ${{ steps.meta-api.outputs.tag_sha }}
           region: ${{ env.REGION }}
           flags: |
             --memory=512Mi
@@ -78,12 +102,38 @@ jobs:
             --allow-unauthenticated
             --cpu-throttling
             --cpu-boost
+            --set-env-vars="MONGODB_URI=${{ secrets.MONGODB_URI }},LETTA_API_KEY=${{ secrets.LETTA_API_KEY }},LETTA_BASE_URL=${{ secrets.LETTA_BASE_URL }},FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }},FIREBASE_SERVICE_ACCOUNT=${{ secrets.FIREBASE_SERVICE_ACCOUNT }},ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}"
 
-      # ── Verify deployment ────────────────────────────
-      - name: Verify deployment
+      # ── Deploy Web to Cloud Run ────────────────────────
+      - name: Deploy Web to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_WEB }}
+          image: ${{ steps.meta-web.outputs.tag_sha }}
+          region: ${{ env.REGION }}
+          flags: |
+            --memory=512Mi
+            --min-instances=0
+            --max-instances=3
+            --allow-unauthenticated
+            --cpu-throttling
+            --cpu-boost
+            --set-env-vars="NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}"
+
+      # ── Verify API deployment ────────────────────────────
+      - name: Verify API deployment
         run: |
-          URL=$(gcloud run services describe ${{ env.SERVICE }} \
+          URL=$(gcloud run services describe ${{ env.SERVICE_API }} \
             --region=${{ env.REGION }} \
             --format='value(status.url)')
-          echo "🚀 Deployed to: ${URL}"
-          curl -sf "${URL}/api/v1/health/live" && echo " ✅ Health check passed" || echo " ⚠️  Health check pending"
+          echo "🚀 API Deployed to: ${URL}"
+          curl -sf "${URL}/api/v1/health/live" && echo " ✅ API Health check passed" || echo " ⚠️  API Health check pending"
+
+      # ── Verify Web deployment ────────────────────────────
+      - name: Verify Web deployment
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_WEB }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+          echo "🚀 Web Deployed to: ${URL}"
+          curl -sf "${URL}/" && echo " ✅ Web Health check passed" || echo " ⚠️  Web Health check pending"

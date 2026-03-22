@@ -1,33 +1,21 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EmbeddingService } from '../embedding.js';
-
-// ── Mock Anthropic SDK ──────────────────────────────
-
-vi.mock('@anthropic-ai/sdk', () => {
-  return {
-    default: vi.fn().mockImplementation(() => ({
-      post: vi.fn(),
-    })),
-  };
-});
 
 describe('EmbeddingService', () => {
   let service: EmbeddingService;
-  let mockPost: ReturnType<typeof vi.fn>;
+  let mockFetch: ReturnType<typeof vi.fn>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
 
     service = new EmbeddingService({ apiKey: 'test-api-key' });
 
-    // Access the mocked post method
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const instance = new Anthropic({ apiKey: 'test' });
-    mockPost = instance.post as ReturnType<typeof vi.fn>;
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+  });
 
-    // Replace the service's client.post with our mock
-    // @ts-expect-error - accessing private property for test
-    service.client = { post: mockPost };
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe('buildEmbeddingText', () => {
@@ -82,25 +70,36 @@ describe('EmbeddingService', () => {
   describe('generateEmbedding', () => {
     it('should call Voyage API with document input_type', async () => {
       const fakeEmbedding = Array.from({ length: 1024 }, (_, i) => i * 0.001);
-      mockPost.mockResolvedValue({
-        data: [{ embedding: fakeEmbedding }],
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [{ embedding: fakeEmbedding }],
+        }),
       });
 
       const result = await service.generateEmbedding('test text');
 
-      expect(mockPost).toHaveBeenCalledWith('/v1/embeddings', {
-        body: {
+      expect(mockFetch).toHaveBeenCalledWith('https://api.voyageai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer test-api-key',
+        },
+        body: JSON.stringify({
           model: 'voyage-3',
           input: 'test text',
           input_type: 'document',
-        },
+        }),
       });
       expect(result).toEqual(fakeEmbedding);
       expect(result).toHaveLength(1024);
     });
 
     it('should throw on empty response', async () => {
-      mockPost.mockResolvedValue({ data: [] });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
 
       await expect(service.generateEmbedding('test')).rejects.toThrow(
         'Failed to generate embedding: empty response',
@@ -111,27 +110,29 @@ describe('EmbeddingService', () => {
   describe('generateQueryEmbedding', () => {
     it('should call Voyage API with query input_type', async () => {
       const fakeEmbedding = Array.from({ length: 1024 }, (_, i) => i * 0.001);
-      mockPost.mockResolvedValue({
-        data: [{ embedding: fakeEmbedding }],
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [{ embedding: fakeEmbedding }],
+        }),
       });
 
       const result = await service.generateQueryEmbedding('search query');
 
-      expect(mockPost).toHaveBeenCalledWith('/v1/embeddings', {
-        body: {
-          model: 'voyage-3',
-          input: 'search query',
-          input_type: 'query',
-        },
-      });
+      expect(mockFetch).toHaveBeenCalledWith('https://api.voyageai.com/v1/embeddings', expect.objectContaining({
+        body: expect.stringContaining('"input_type":"query"'),
+      }));
       expect(result).toEqual(fakeEmbedding);
     });
 
     it('should throw on empty response', async () => {
-      mockPost.mockResolvedValue({ data: [] });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
 
       await expect(service.generateQueryEmbedding('test')).rejects.toThrow(
-        'Failed to generate query embedding: empty response',
+        'Failed to generate embedding: empty response',
       );
     });
   });
@@ -144,20 +145,21 @@ describe('EmbeddingService', () => {
       });
 
       const fakeEmbedding = [0.1, 0.2, 0.3];
-      const customMockPost = vi.fn().mockResolvedValue({
-        data: [{ embedding: fakeEmbedding }],
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [{ embedding: fakeEmbedding }],
+        }),
       });
-
-      // @ts-expect-error - accessing private property for test
-      customService.client = { post: customMockPost };
 
       await customService.generateEmbedding('code snippet');
 
-      expect(customMockPost).toHaveBeenCalledWith('/v1/embeddings', {
-        body: expect.objectContaining({
-          model: 'voyage-code-3',
+      expect(mockFetch).toHaveBeenCalledWith('https://api.voyageai.com/v1/embeddings', expect.objectContaining({
+        body: expect.stringContaining('"model":"voyage-code-3"'),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key',
         }),
-      });
+      }));
     });
   });
 });
