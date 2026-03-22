@@ -1,5 +1,6 @@
 import type { SSEEvent, PipelineStepName, PipelineStepStatus } from '@/types/chat';
 import type { Skill, SkillUpdatePayload } from '@/types/skill';
+import type { Workflow, WorkflowRun, WorkflowParameter } from '@/types/workflow';
 
 const API_BASE = '/api/v1';
 
@@ -171,3 +172,70 @@ export function streamTask(
 
   return controller;
 }
+
+// ── Workflow API ─────────────────────────────────────
+
+export interface FetchWorkflowsParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+}
+
+export interface FetchWorkflowsResponse {
+  workflows: Workflow[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchWorkflows(params: FetchWorkflowsParams = {}): Promise<FetchWorkflowsResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.status) query.set('status', params.status);
+  if (params.search) query.set('search', params.search);
+
+  const res = await fetch(`${API_BASE}/workflows?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch workflows: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function fetchWorkflowRuns(workflowId: string, limit = 20): Promise<WorkflowRun[]> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}/runs?limit=${limit}`);
+  if (!res.ok) throw new Error(`Failed to fetch workflow runs: ${res.status}`);
+  const json = await res.json();
+  return json.data?.runs ?? [];
+}
+
+export async function pauseWorkflow(workflowId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}/pause`, { method: 'PUT' });
+  if (!res.ok) throw new Error(`Failed to pause workflow: ${res.status}`);
+}
+
+export async function resumeWorkflow(workflowId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}/resume`, { method: 'PUT' });
+  if (!res.ok) throw new Error(`Failed to resume workflow: ${res.status}`);
+}
+
+export async function deleteWorkflow(workflowId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to delete workflow: ${res.status}`);
+}
+
+export async function updateWorkflowParams(
+  workflowId: string,
+  parameters: WorkflowParameter[],
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parameters }),
+  });
+  if (!res.ok) throw new Error(`Failed to update workflow params: ${res.status}`);
+}
+

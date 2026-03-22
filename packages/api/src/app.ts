@@ -7,6 +7,7 @@ import { healthRoutes } from './routes/health.js';
 import { taskRoutes } from './routes/tasks.js';
 import { skillRoutes } from './routes/skills.js';
 import { decisionRoutes } from './routes/decisions.js';
+import { workflowRoutes } from './routes/workflows.js';
 
 export async function buildServer() {
   const app = Fastify({
@@ -37,6 +38,7 @@ export async function buildServer() {
   await app.register(taskRoutes, { prefix: '/api/v1' });
   await app.register(skillRoutes, { prefix: '/api/v1' });
   await app.register(decisionRoutes, { prefix: '/api/v1' });
+  await app.register(workflowRoutes, { prefix: '/api/v1' });
 
   return app;
 }
