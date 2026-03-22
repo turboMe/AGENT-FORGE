@@ -1,6 +1,8 @@
 import type { SSEEvent, PipelineStepName, PipelineStepStatus } from '@/types/chat';
 import type { Skill, SkillUpdatePayload } from '@/types/skill';
 import type { Workflow, WorkflowRun, WorkflowParameter } from '@/types/workflow';
+import type { Credential, CreateCredentialPayload } from '@/types/credential';
+import type { UserProfile, UsageStats } from '@/types/settings';
 
 const API_BASE = '/api/v1';
 
@@ -239,3 +241,54 @@ export async function updateWorkflowParams(
   if (!res.ok) throw new Error(`Failed to update workflow params: ${res.status}`);
 }
 
+// ── Credential API ───────────────────────────────────
+
+export async function fetchCredentials(): Promise<Credential[]> {
+  const res = await fetch(`${API_BASE}/credentials`);
+  if (!res.ok) throw new Error(`Failed to fetch credentials: ${res.status}`);
+  const json = await res.json();
+  return json.data?.credentials ?? [];
+}
+
+export async function createCredential(data: CreateCredentialPayload): Promise<Credential> {
+  const res = await fetch(`${API_BASE}/credentials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create credential: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function deleteCredential(credentialId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/credentials/${credentialId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to delete credential: ${res.status}`);
+}
+
+// ── Settings API ─────────────────────────────────────
+
+export async function fetchProfile(): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/settings/profile`);
+  if (!res.ok) throw new Error(`Failed to fetch profile: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function updateProfile(data: Partial<UserProfile>): Promise<void> {
+  const res = await fetch(`${API_BASE}/settings/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update profile: ${res.status}`);
+}
+
+export async function fetchUsage(): Promise<UsageStats> {
+  const res = await fetch(`${API_BASE}/settings/usage`);
+  if (!res.ok) throw new Error(`Failed to fetch usage: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}

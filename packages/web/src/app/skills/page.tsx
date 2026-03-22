@@ -3,7 +3,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Library, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillFilters } from "@/components/skills/skill-filters";
 import { SkillSort } from "@/components/skills/skill-sort";
