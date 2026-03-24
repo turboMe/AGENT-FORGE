@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { User, Sparkles, Copy, Check, Wand2, Bot, Save } from "lucide-react";
+import { User, Sparkles, Copy, Check, Wand2, Bot, Save, Lightbulb, ClipboardCopy, BookMarked } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/chat";
 import { createSkill } from "@/lib/api";
@@ -166,7 +166,7 @@ function DeliverableContent({ message }: { message: Message }) {
               ) : (
                 <>
                   <Save className="h-3 w-3" />
-                  <span>Save to Library</span>
+                  <span>Save {isAgent ? 'Agent' : 'Skill'}</span>
                 </>
               )}
             </button>
@@ -197,9 +197,15 @@ function DeliverableContent({ message }: { message: Message }) {
 
         {/* Prompt content */}
         <div className="p-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-border">
-          <pre className="text-xs text-foreground/90 whitespace-pre-wrap break-words font-mono leading-relaxed">
-            {prompt}
-          </pre>
+          {isAgent ? (
+            <div className="prose prose-sm prose-invert max-w-none break-words text-foreground/90">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{prompt}</ReactMarkdown>
+            </div>
+          ) : (
+            <pre className="text-xs text-foreground/90 whitespace-pre-wrap break-words font-mono leading-relaxed">
+              {prompt}
+            </pre>
+          )}
         </div>
       </div>
 
@@ -207,6 +213,32 @@ function DeliverableContent({ message }: { message: Message }) {
       {deployNote && (
         <div className="prose prose-sm prose-invert max-w-none break-words text-muted-foreground">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{deployNote}</ReactMarkdown>
+        </div>
+      )}
+
+      {/* Agent-only: "What next?" guidance */}
+      {isAgent && (
+        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-cyan-400">
+            <Lightbulb className="h-4 w-4" />
+            <span>How to use this agent</span>
+          </div>
+          <div className="space-y-2.5 text-xs text-foreground/80">
+            <div className="flex items-start gap-2.5">
+              <ClipboardCopy className="h-3.5 w-3.5 mt-0.5 shrink-0 text-cyan-400/70" />
+              <div>
+                <span className="font-medium text-foreground/90">Copy &amp; paste as System Prompt</span>
+                <p className="mt-0.5 text-muted-foreground">Use in ChatGPT, Claude, Gemini, or any LLM via API. Paste the prompt as a system/custom instruction.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <BookMarked className="h-3.5 w-3.5 mt-0.5 shrink-0 text-cyan-400/70" />
+              <div>
+                <span className="font-medium text-foreground/90">Add as Project Instructions</span>
+                <p className="mt-0.5 text-muted-foreground">For best results, add this prompt to your project&apos;s custom instructions (e.g. ChatGPT Projects, Claude Projects). The agent will be available in every chat within that project.</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

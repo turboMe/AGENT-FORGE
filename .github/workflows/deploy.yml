@@ -105,6 +105,7 @@ jobs:
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
             VOYAGE_API_KEY=${{ secrets.VOYAGE_API_KEY }}
             CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
+            ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
           flags: |
             --memory=512Mi
             --min-instances=0
