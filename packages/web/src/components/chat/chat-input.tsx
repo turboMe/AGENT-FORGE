@@ -188,7 +188,7 @@ export function ChatInput({
             />
           </div>
 
-          {/* Send button */}
+          {/* Send button — hidden when generate buttons are visible */}
           <button
             type="button"
             onClick={handleSend}
@@ -197,7 +197,8 @@ export function ChatInput({
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
               "bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg shadow-violet-500/25",
               "hover:shadow-violet-500/40 hover:scale-105",
-              "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none"
+              "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none",
+              showGenerateButtons && "hidden"
             )}
             aria-label="Send message"
           >
