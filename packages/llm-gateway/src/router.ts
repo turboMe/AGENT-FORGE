@@ -28,7 +28,15 @@ const BUILTIN_MODELS: ModelConfig[] = [
     maxTokens: 8192,
   },
   {
-    id: 'gpt-4o-mini',
+    id: 'gpt-5.4',
+    provider: 'openai',
+    quality: 'best',
+    costPer1KInput: 0.0025,
+    costPer1KOutput: 0.01,
+    maxTokens: 16384,
+  },
+  {
+    id: 'gpt-5.4-mini',
     provider: 'openai',
     quality: 'fast',
     costPer1KInput: 0.00015,
@@ -55,16 +63,16 @@ export function registerModel(config: ModelConfig): void {
 // ── Quality → Model Mapping ─────────────────────────
 
 const QUALITY_TO_MODEL: Record<QualityTier, ModelId> = {
-  fast: 'gpt-4o-mini',
-  balanced: 'gpt-4o-mini',
-  best: 'claude-sonnet-4-5',
+  fast: 'gpt-5.4-mini',
+  balanced: 'gpt-5.4',
+  best: 'claude-opus-4-6',
 };
 
 // ── Complexity → Model Mapping ──────────────────────
 
 const COMPLEXITY_TO_MODEL: Record<TaskComplexity, ModelId> = {
-  simple: 'gpt-4o-mini',
-  medium: 'gpt-4o-mini',
+  simple: 'gpt-5.4-mini',
+  medium: 'gpt-5.4-mini',
   complex: 'claude-opus-4-6',
 };
 
@@ -73,18 +81,19 @@ const COMPLEXITY_TO_MODEL: Record<TaskComplexity, ModelId> = {
 const MODEL_SHORTHAND: Record<string, ModelId> = {
   claude: 'claude-sonnet-4-5',
   opus: 'claude-opus-4-6',
-  gpt: 'gpt-4o-mini',
+  gpt: 'gpt-5.4',
+  'gpt-mini': 'gpt-5.4-mini',
 };
 
-// ── Purpose → preferred model ───────────────────────
+// ── Purpose → preferred model (tries in order across providers) ──
 
 const PURPOSE_MODEL: Partial<Record<string, ModelId[]>> = {
-  'prompt-architect': ['claude-opus-4-6', 'claude-sonnet-4-5', 'gpt-4o-mini'],
+  'prompt-architect': ['claude-opus-4-6', 'gpt-5.4', 'claude-sonnet-4-5', 'gpt-5.4-mini'],
 };
 
 // ── Fallback Chain ──────────────────────────────────
 
-const FALLBACK_ORDER: ModelId[] = ['claude-sonnet-4-5', 'gpt-4o-mini'];
+const FALLBACK_ORDER: ModelId[] = ['claude-sonnet-4-5', 'gpt-5.4', 'gpt-5.4-mini'];
 
 export interface ModelSelection {
   model: ModelId;
