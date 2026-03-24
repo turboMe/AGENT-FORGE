@@ -1,13 +1,18 @@
 // ── Provider & Model Identifiers ────────────────────
 
-export type LLMProviderName = 'anthropic' | 'openai';
+// Extensible: known providers get autocomplete, but any string is valid
+export type LLMProviderName = 'anthropic' | 'openai' | 'ollama' | (string & {});
 
-export type AnthropicModelId = 'claude-sonnet-4-5';
+// Dynamic: registerModel() can add any model at runtime
+export type ModelId = string;
+
+// --- Legacy aliases (for backward compat) ---
+export type AnthropicModelId = 'claude-sonnet-4-5' | 'claude-opus-4-6';
 export type OpenAIModelId = 'gpt-4o-mini';
-export type ModelId = AnthropicModelId | OpenAIModelId;
 
 export type QualityTier = 'fast' | 'balanced' | 'best';
 export type TaskComplexity = 'simple' | 'medium' | 'complex';
+export type GenerationPurpose = 'prompt-architect' | 'general' | (string & {});
 
 // ── Model Configuration ─────────────────────────────
 
@@ -68,11 +73,13 @@ export interface GatewayConfig {
 // ── Generate Params & Result ────────────────────────
 
 export interface LLMGenerateParams {
-  prompt: string;
+  prompt?: string;
   systemPrompt?: string;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
   model?: ModelId | 'auto';
   quality?: QualityTier;
   complexity?: TaskComplexity;
+  purpose?: GenerationPurpose;
   maxTokens?: number;
   temperature?: number;
 }
@@ -92,6 +99,7 @@ export interface LLMGenerateResult {
 export interface ProviderGenerateParams {
   prompt: string;
   systemPrompt?: string;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
   model: string;
   maxTokens: number;
   temperature: number;

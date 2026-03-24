@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { User, Sparkles } from "lucide-react";
+import { User, Sparkles, Copy, Check, Wand2, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/chat";
 
@@ -18,6 +18,100 @@ function formatTime(timestamp: number): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Extract prompt from deliverable content using markers */
+function parseDeliverable(content: string) {
+  const startMarker = "===PROMPT_START===";
+  const endMarker = "===PROMPT_END===";
+
+  const startIdx = content.indexOf(startMarker);
+  const endIdx = content.indexOf(endMarker);
+
+  if (startIdx === -1 || endIdx === -1) {
+    return { brief: "", prompt: content, deployNote: "" };
+  }
+
+  const brief = content.slice(0, startIdx).trim();
+  const prompt = content.slice(startIdx + startMarker.length, endIdx).trim();
+  const deployNote = content.slice(endIdx + endMarker.length).trim();
+
+  return { brief, prompt, deployNote };
+}
+
+function DeliverableContent({ message }: { message: Message }) {
+  const [copied, setCopied] = useState(false);
+  const { brief, prompt, deployNote } = parseDeliverable(message.content);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const isAgent = message.deliverableType === "agent";
+
+  return (
+    <div className="space-y-3">
+      {/* Brief */}
+      {brief && (
+        <div className="prose prose-sm prose-invert max-w-none break-words">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{brief}</ReactMarkdown>
+        </div>
+      )}
+
+      {/* Prompt block */}
+      <div className="relative rounded-lg border border-border/70 bg-background/50 overflow-hidden">
+        {/* Header */}
+        <div className={cn(
+          "flex items-center justify-between px-3 py-2 text-xs font-medium border-b border-border/50",
+          isAgent
+            ? "bg-cyan-500/10 text-cyan-400"
+            : "bg-amber-500/10 text-amber-400"
+        )}>
+          <div className="flex items-center gap-1.5">
+            {isAgent ? <Bot className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
+            <span>Generated {isAgent ? "Agent" : "Skill"} Prompt</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={cn(
+              "flex items-center gap-1 rounded px-2 py-0.5 transition-all",
+              "hover:bg-white/10",
+              copied && "text-emerald-400"
+            )}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3" />
+                <span>Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Prompt content */}
+        <div className="p-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-border">
+          <pre className="text-xs text-foreground/90 whitespace-pre-wrap break-words font-mono leading-relaxed">
+            {prompt}
+          </pre>
+        </div>
+      </div>
+
+      {/* Deployment note */}
+      {deployNote && (
+        <div className="prose prose-sm prose-invert max-w-none break-words text-muted-foreground">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{deployNote}</ReactMarkdown>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function MessageList({
@@ -46,20 +140,7 @@ export function MessageList({
             routed through the AgentForge pipeline.
           </p>
         </div>
-        <div className="flex flex-wrap justify-center gap-2 mt-2">
-          {[
-            "Write a cold email for a SaaS product",
-            "Analyze my restaurant food costs",
-            "Create a project README",
-          ].map((example) => (
-            <div
-              key={example}
-              className="rounded-lg border border-border/50 bg-card px-3 py-2 text-xs text-muted-foreground hover:border-violet-500/30 hover:text-foreground transition-all cursor-default"
-            >
-              {example}
-            </div>
-          ))}
-        </div>
+
       </div>
     );
   }
@@ -149,6 +230,8 @@ function MessageBubble({ message }: { message: Message }) {
             <p className="text-sm whitespace-pre-wrap break-words">
               {message.content}
             </p>
+          ) : message.isDeliverable ? (
+            <DeliverableContent message={message} />
           ) : (
             <div className="prose prose-sm prose-invert max-w-none break-words">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>

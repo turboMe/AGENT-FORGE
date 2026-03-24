@@ -2,6 +2,20 @@ import type { TaskOptions, IDecision } from '@agentforge/shared';
 import type { ISkillLibrary } from '@agentforge/skill-library';
 import type { ILLMGateway } from '@agentforge/llm-gateway';
 
+// ── Step Callback ───────────────────────────────────
+
+export type StepStatus = 'running' | 'done' | 'failed';
+
+/**
+ * Callback invoked by the Orchestrator at each pipeline step.
+ * The API route uses this to emit real-time SSE events.
+ */
+export type StepCallback = (
+  step: string,
+  status: StepStatus,
+  label: string,
+) => void;
+
 // ── Task Classification ─────────────────────────────
 
 export interface TaskClassification {
@@ -77,6 +91,7 @@ export interface IOrchestrator {
     userId: string;
     task: string;
     options?: Partial<TaskOptions>;
+    onStep?: StepCallback;
   }): Promise<{
     taskId: string;
     classification: TaskClassification;

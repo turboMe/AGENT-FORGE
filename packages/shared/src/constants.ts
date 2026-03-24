@@ -34,6 +34,13 @@ export type Tier = keyof typeof TIER_LIMITS;
 
 // ── Model Configuration ─────────────────────────────
 export const MODEL_CONFIG = {
+  'claude-opus-4-6': {
+    provider: 'anthropic',
+    quality: 'best',
+    costPer1KInput: 0.015,           // TODO: Verify current Anthropic pricing before deploy
+    costPer1KOutput: 0.075,          // TODO: Verify current Anthropic pricing before deploy
+    maxTokens: 16384,
+  },
   'claude-sonnet-4-5': {
     provider: 'anthropic',
     quality: 'best',
@@ -54,6 +61,17 @@ export const MODEL_CONFIG = {
     costPer1KInput: 0.0001,
     costPer1KOutput: 0.0004,
     maxTokens: 8192,
+  },
+} as const;
+
+// ── Prompt Architect V2 Configuration ───────────────
+export const ARCHITECT_CONFIG = {
+  model: 'claude-opus-4-6' as string,
+  temperature: 0.3,
+  maxTokens: 8192,
+  markers: {
+    start: '===PROMPT_START===',
+    end: '===PROMPT_END===',
   },
 } as const;
 

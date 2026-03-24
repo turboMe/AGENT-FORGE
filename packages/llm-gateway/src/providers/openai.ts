@@ -18,17 +18,26 @@ export class OpenAIProvider extends BaseLLMProvider {
       apiKey: this.apiKey,
       ...(this.baseUrl ? { baseURL: this.baseUrl } : {}),
       timeout: this.timeoutMs,
+      maxRetries: 0, // Gateway handles retries — disable SDK-level retries
     });
   }
 
   async generate(params: ProviderGenerateParams): Promise<ProviderGenerateResult> {
     try {
-      const messages: OpenAI.ChatCompletionMessageParam[] = [];
-
-      if (params.systemPrompt) {
-        messages.push({ role: 'system', content: params.systemPrompt });
+      // Build messages: use explicit messages[] if provided, otherwise build from prompt
+      let messages: OpenAI.ChatCompletionMessageParam[];
+      if (params.messages?.length) {
+        messages = params.messages.map((m) => ({
+          role: m.role as 'user' | 'assistant' | 'system',
+          content: m.content,
+        }));
+      } else {
+        messages = [];
+        if (params.systemPrompt) {
+          messages.push({ role: 'system', content: params.systemPrompt });
+        }
+        messages.push({ role: 'user', content: params.prompt });
       }
-      messages.push({ role: 'user', content: params.prompt });
 
       const response = await this.client.chat.completions.create({
         model: params.model,

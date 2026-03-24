@@ -1,12 +1,21 @@
 "use client";
 
+
 import { useReducer, useCallback, useEffect, useState, useRef } from "react";
 import { ChatInput } from "@/components/chat/chat-input";
 import { FileUpload } from "@/components/chat/file-upload";
 import { MessageList } from "@/components/chat/message-list";
 import { PipelineIndicator } from "@/components/chat/pipeline-indicator";
 import { ConversationSidebar } from "@/components/chat/conversation-sidebar";
-import { streamTask } from "@/lib/api";
+import {
+  streamTask,
+  fetchConversations,
+  createConversation as apiCreateConversation,
+  fetchConversation,
+  updateConversationTitle,
+  deleteConversation as apiDeleteConversation,
+  type ApiConversation,
+} from "@/lib/api";
 import type {
   ChatState,
   ChatAction,
@@ -15,30 +24,33 @@ import type {
   PipelineStep,
   UploadedFile,
   SSEEvent,
+  ArchitectState,
 } from "@/types/chat";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSearchParams, useRouter as useNextRouter } from "next/navigation";
 
 // ── Helpers ─────────────────────────────────────────
-const STORAGE_KEY = "agentforge-conversations";
 
 function genId(): string {
   return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function loadConversations(): Conversation[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Conversation[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveConversations(convs: Conversation[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
+/** Convert API conversation to local state format */
+function apiToLocal(api: ApiConversation): Conversation {
+  return {
+    id: api._id,
+    title: api.title,
+    messages: (api.messages ?? []).map((m) => ({
+      id: genId(),
+      role: m.role,
+      content: m.content,
+      timestamp: new Date(m.timestamp).getTime(),
+      files: m.files?.map((f) => ({ id: genId(), name: f.name, size: f.size, type: f.type })),
+    })),
+    createdAt: new Date(api.createdAt).getTime(),
+    updatedAt: new Date(api.updatedAt).getTime(),
+  };
 }
 
 // ── Default pipeline steps ──────────────────────────
@@ -53,17 +65,15 @@ function defaultPipelineSteps(): PipelineStep[] {
   ];
 }
 
+const defaultArchitectState: ArchitectState = {
+  isAwaitingInput: false,
+  generationType: null,
+  history: [],
+  originalTask: "",
+  originalFiles: [],
+};
+
 // ── Reducer ─────────────────────────────────────────
-function createNewConversation(): Conversation {
-  const now = Date.now();
-  return {
-    id: genId(),
-    title: "",
-    messages: [],
-    createdAt: now,
-    updatedAt: now,
-  };
-}
 
 const initialState: ChatState = {
   conversations: [],
@@ -71,27 +81,29 @@ const initialState: ChatState = {
   isStreaming: false,
   pipelineSteps: [],
   streamedContent: "",
+  architect: defaultArchitectState,
 };
 
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "LOAD_CONVERSATIONS": {
-      const active =
-        action.conversations.length > 0
-          ? action.conversations.sort((a, b) => b.updatedAt - a.updatedAt)[0].id
-          : null;
-      return { ...state, conversations: action.conversations, activeConversationId: active };
+      return { ...state, conversations: action.conversations };
+    }
+
+    case "UPDATE_CONVERSATION": {
+      const conversations = state.conversations.map((c) =>
+        c.id === action.conversation.id ? action.conversation : c
+      );
+      return { ...state, conversations };
     }
 
     case "NEW_CONVERSATION": {
-      const conv = createNewConversation();
-      const conversations = [conv, ...state.conversations];
-      saveConversations(conversations);
-      return { ...state, conversations, activeConversationId: conv.id, pipelineSteps: [], streamedContent: "" };
+      // We'll handle creation via API — this just sets the new conv into state
+      return state;
     }
 
     case "SET_ACTIVE_CONVERSATION":
-      return { ...state, activeConversationId: action.id, pipelineSteps: [], streamedContent: "" };
+      return { ...state, activeConversationId: action.id, pipelineSteps: [], streamedContent: "", architect: defaultArchitectState };
 
     case "ADD_USER_MESSAGE": {
       const conversations = state.conversations.map((c) => {
@@ -100,7 +112,6 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         const title = c.title || action.message.content.slice(0, 50);
         return { ...c, messages, title, updatedAt: Date.now() };
       });
-      saveConversations(conversations);
       return { ...state, conversations };
     }
 
@@ -113,9 +124,34 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
 
     case "PIPELINE_STEP": {
-      const pipelineSteps = state.pipelineSteps.map((s) =>
-        s.step === action.step ? { ...s, status: action.status, label: action.label } : s
-      );
+      // If the step doesn't exist yet (e.g. 'architect'), add it dynamically
+      const exists = state.pipelineSteps.some((s) => s.step === action.step);
+      let pipelineSteps: PipelineStep[];
+      const now = Date.now();
+      if (exists) {
+        pipelineSteps = state.pipelineSteps.map((s) =>
+          s.step === action.step
+            ? {
+                ...s,
+                status: action.status,
+                label: action.label,
+                error: action.error,
+                startedAt: action.status === 'running' ? now : s.startedAt,
+              }
+            : s
+        );
+      } else {
+        pipelineSteps = [
+          ...state.pipelineSteps,
+          {
+            step: action.step,
+            label: action.label,
+            status: action.status,
+            error: action.error,
+            startedAt: action.status === 'running' ? now : undefined,
+          },
+        ];
+      }
       return { ...state, pipelineSteps };
     }
 
@@ -128,13 +164,14 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         role: "assistant",
         content: state.streamedContent,
         timestamp: Date.now(),
+        isDeliverable: action.isDeliverable,
+        deliverableType: action.deliverableType as 'skill' | 'agent' | undefined,
       };
       const conversations = state.conversations.map((c) => {
         if (c.id !== state.activeConversationId) return c;
         return { ...c, messages: [...c.messages, assistantMsg], updatedAt: Date.now() };
       });
-      saveConversations(conversations);
-      return { ...state, conversations, isStreaming: false, streamedContent: "" };
+      return { ...state, conversations, isStreaming: false, streamedContent: "", architect: defaultArchitectState };
     }
 
     case "STREAM_ERROR": {
@@ -148,18 +185,37 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         if (c.id !== state.activeConversationId) return c;
         return { ...c, messages: [...c.messages, errorMsg], updatedAt: Date.now() };
       });
-      saveConversations(conversations);
-      return { ...state, conversations, isStreaming: false, pipelineSteps: [], streamedContent: "" };
+      return { ...state, conversations, isStreaming: false, pipelineSteps: [], streamedContent: "", architect: defaultArchitectState };
     }
 
     case "DELETE_CONVERSATION": {
       const conversations = state.conversations.filter((c) => c.id !== action.id);
-      saveConversations(conversations);
       const activeConversationId =
         state.activeConversationId === action.id
           ? conversations[0]?.id ?? null
           : state.activeConversationId;
       return { ...state, conversations, activeConversationId };
+    }
+
+    case "ARCHITECT_AWAITING_INPUT": {
+      return {
+        ...state,
+        isStreaming: false,
+        architect: {
+          isAwaitingInput: true,
+          generationType: action.generationType,
+          history: [
+            ...state.architect.history,
+            // The streamed content is the architect's questions
+          ],
+          originalTask: action.originalTask || state.architect.originalTask,
+          originalFiles: action.originalFiles ?? state.architect.originalFiles,
+        },
+      };
+    }
+
+    case "ARCHITECT_RESET": {
+      return { ...state, architect: defaultArchitectState };
     }
 
     default:
@@ -173,27 +229,197 @@ export default function ChatPage() {
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [loading, setLoading] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchParams = useSearchParams();
+  const nextRouter = useNextRouter();
+  const [skillPrompt, setSkillPrompt] = useState<string | undefined>(undefined);
 
-  // Load conversations from localStorage on mount
+  // Track the current generationType for the ongoing stream
+  const generationTypeRef = useRef<'skill' | 'agent' | null>(null);
+  const originalTaskRef = useRef<string>("");
+
+  // Read skill query params from "Use" button on Skills page
   useEffect(() => {
-    const convs = loadConversations();
-    if (convs.length > 0) {
-      dispatch({ type: "LOAD_CONVERSATIONS", conversations: convs });
-    } else {
-      dispatch({ type: "NEW_CONVERSATION" });
+    const skillName = searchParams.get("skillName");
+    if (skillName) {
+      setSkillPrompt(`Use skill: ${skillName}`);
+      // Clear query params from URL to avoid re-triggering
+      nextRouter.replace("/", { scroll: false });
     }
+  }, [searchParams, nextRouter]);
+
+  // Keep a ref to conversations for use in callbacks (avoids stale closures)
+  const conversationsRef = useRef(state.conversations);
+  conversationsRef.current = state.conversations;
+
+  // Load conversations from API on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConversations() {
+      try {
+        const result = await fetchConversations({ limit: 50 });
+        if (cancelled) return;
+        const convs = result.conversations.map(apiToLocal);
+        dispatch({ type: "LOAD_CONVERSATIONS", conversations: convs });
+        if (convs.length > 0) {
+          const sorted = [...convs].sort((a, b) => b.updatedAt - a.updatedAt);
+          dispatch({ type: "SET_ACTIVE_CONVERSATION", id: sorted[0].id });
+        }
+      } catch (err) {
+        console.error("Failed to load conversations:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadConversations();
+    return () => { cancelled = true; };
   }, []);
 
   const activeConversation = state.conversations.find(
     (c) => c.id === state.activeConversationId
   );
 
+  // ── Create new conversation via API ────────────────
+  const handleNewConversation = useCallback(async () => {
+    try {
+      const apiConv = await apiCreateConversation();
+      const conv: Conversation = apiToLocal(apiConv);
+      dispatch({
+        type: "LOAD_CONVERSATIONS", // Use LOAD_CONVERSATIONS to add the new conversation
+        conversations: [conv, ...conversationsRef.current], // Use ref to avoid stale closure
+      });
+      dispatch({ type: "SET_ACTIVE_CONVERSATION", id: conv.id });
+    } catch (err) {
+      console.error("Failed to create conversation:", err);
+    }
+  }, []); // No dependency on state.conversations due to conversationsRef
+
+  // ── Delete conversation via API ────────────────────
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    try {
+      await apiDeleteConversation(id);
+      dispatch({ type: "DELETE_CONVERSATION", id });
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+    }
+  }, []);
+
+  // ── Load full conversation when switching ──────────
+  const handleSelectConversation = useCallback(async (id: string) => {
+    dispatch({ type: "SET_ACTIVE_CONVERSATION", id });
+
+    // Check if we already have messages loaded (use ref to avoid stale closure)
+    const existing = conversationsRef.current.find((c) => c.id === id);
+    if (existing && existing.messages.length > 0) return;
+
+    // Fetch full conversation with messages from API
+    try {
+      const apiConv = await fetchConversation(id);
+      const fullConv = apiToLocal(apiConv);
+      dispatch({ type: "UPDATE_CONVERSATION", conversation: fullConv });
+    } catch (err) {
+      console.error("Failed to fetch conversation:", err);
+    }
+  }, []);
+
+  // ── SSE event handler ─────────────────────────────
+  const createSSEHandler = useCallback((_conversationId: string, _taskContent: string) => {
+    // Reset the timeout watchdog on every event
+    const resetWatchdog = () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        dispatch({ type: "STREAM_ERROR", error: "Connection timeout — no response from server for 60 seconds" });
+        abortRef.current?.abort();
+      }, 60_000);
+    };
+
+    return (event: SSEEvent) => {
+      resetWatchdog();
+
+      switch (event.type) {
+        case "step":
+          dispatch({
+            type: "PIPELINE_STEP",
+            step: event.data.step,
+            status: event.data.status,
+            label: event.data.label,
+          });
+          // If a step failed, also treat it as a stream error
+          if (event.data.status === 'failed') {
+            dispatch({ type: "STREAM_ERROR", error: event.data.label });
+          }
+          break;
+        case "token":
+          dispatch({ type: "APPEND_TOKEN", content: event.data.content });
+          break;
+        case "architect_questions": {
+          // The architect is asking clarifying questions
+          // The token events already streamed the questions as content
+          // Mark that we're awaiting user input
+          dispatch({
+            type: "ARCHITECT_AWAITING_INPUT",
+            generationType: generationTypeRef.current ?? 'skill',
+            originalTask: originalTaskRef.current,
+            originalFiles: files,
+          });
+          break;
+        }
+        case "heartbeat":
+          // Keepalive — no action needed, watchdog was already reset
+          break;
+        case "done": {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          const doneData = event.data;
+          if (doneData.status === 'awaiting_input') {
+            // Architect is asking questions — don't finish streaming normally,
+            // instead finalize the current message and set follow-up state
+            dispatch({
+              type: "FINISH_STREAMING",
+            });
+            dispatch({
+              type: "ARCHITECT_AWAITING_INPUT",
+              generationType: generationTypeRef.current ?? 'skill',
+              originalTask: originalTaskRef.current,
+              originalFiles: files,
+            });
+          } else {
+            dispatch({
+              type: "FINISH_STREAMING",
+              taskId: doneData.taskId,
+              isDeliverable: doneData.isDeliverable,
+              deliverableType: doneData.type,
+            });
+          }
+          break;
+        }
+        case "error":
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          dispatch({ type: "STREAM_ERROR", error: event.data.message });
+          break;
+      }
+    };
+  }, [files]);
+
+  // ── Main send handler ─────────────────────────────
   const handleSend = useCallback(
-    (content: string) => {
-      // Ensure active conversation exists
-      if (!state.activeConversationId) {
-        dispatch({ type: "NEW_CONVERSATION" });
+    async (content: string) => {
+      let conversationId = state.activeConversationId;
+
+      // Create a new conversation if there isn't one
+      if (!conversationId) {
+        try {
+          const apiConv = await apiCreateConversation(content.slice(0, 50));
+          const conv = apiToLocal(apiConv);
+          const updatedConvs = [conv, ...conversationsRef.current];
+          dispatch({ type: "LOAD_CONVERSATIONS", conversations: updatedConvs });
+          dispatch({ type: "SET_ACTIVE_CONVERSATION", id: conv.id });
+          conversationId = conv.id;
+        } catch (err) {
+          console.error("Failed to create conversation:", err);
+          return;
+        }
       }
 
       const userMessage: Message = {
@@ -207,34 +433,107 @@ export default function ChatPage() {
       dispatch({ type: "ADD_USER_MESSAGE", message: userMessage });
       dispatch({ type: "START_STREAMING" });
       setShowFileUpload(false);
+
+      // Update title if first message
+      const conv = conversationsRef.current.find((c) => c.id === conversationId);
+      if (conv && !conv.title) {
+        updateConversationTitle(conversationId!, content.slice(0, 50)).catch(console.error);
+      }
+
+      // Prepare files for API
+      const apiFiles = files.length > 0
+        ? files.map((f) => ({ name: f.name, type: f.type, size: f.size, content: f.content }))
+        : undefined;
+
+      // Check if this is a follow-up to architect questions
+      let options: Record<string, unknown> | undefined;
+      if (state.architect.isAwaitingInput) {
+        options = {
+          isArchitectFollowUp: true,
+          generationType: state.architect.generationType,
+          architectHistory: state.architect.history,
+        };
+        originalTaskRef.current = state.architect.originalTask;
+      }
+
       setFiles([]);
 
-      const controller = streamTask(content, undefined, (event: SSEEvent) => {
-        switch (event.type) {
-          case "step":
-            dispatch({
-              type: "PIPELINE_STEP",
-              step: event.data.step,
-              status: event.data.status,
-              label: event.data.label,
-            });
-            break;
-          case "token":
-            dispatch({ type: "APPEND_TOKEN", content: event.data.content });
-            break;
-          case "done":
-            dispatch({ type: "FINISH_STREAMING", taskId: event.data.taskId });
-            break;
-          case "error":
-            dispatch({ type: "STREAM_ERROR", error: event.data.message });
-            break;
-        }
-      });
+      const controller = streamTask(content, options, createSSEHandler(conversationId!, content), { conversationId: conversationId!, files: apiFiles });
 
       abortRef.current = controller;
     },
-    [state.activeConversationId, files]
+    [state.activeConversationId, files, state.architect, createSSEHandler]
   );
+
+  // ── Generate handler (Skill / Agent buttons) ──────
+  const handleGenerate = useCallback(
+    async (content: string, type: 'skill' | 'agent') => {
+      generationTypeRef.current = type;
+      originalTaskRef.current = content;
+
+      let conversationId = state.activeConversationId;
+
+      // Create a new conversation if there isn't one
+      if (!conversationId) {
+        try {
+          const apiConv = await apiCreateConversation(content.slice(0, 50));
+          const conv = apiToLocal(apiConv);
+          const updatedConvs = [conv, ...conversationsRef.current];
+          dispatch({ type: "LOAD_CONVERSATIONS", conversations: updatedConvs });
+          dispatch({ type: "SET_ACTIVE_CONVERSATION", id: conv.id });
+          conversationId = conv.id;
+        } catch (err) {
+          console.error("Failed to create conversation:", err);
+          return;
+        }
+      }
+
+      const userMessage: Message = {
+        id: genId(),
+        role: "user",
+        content: `[Generate ${type === 'agent' ? 'Agent' : 'Skill'}] ${content}`,
+        timestamp: Date.now(),
+        files: files.length > 0 ? [...files] : undefined,
+      };
+
+      dispatch({ type: "ADD_USER_MESSAGE", message: userMessage });
+      dispatch({ type: "START_STREAMING" });
+      setShowFileUpload(false);
+
+      // Update title if first message
+      const conv = conversationsRef.current.find((c) => c.id === conversationId);
+      if (conv && !conv.title) {
+        updateConversationTitle(conversationId!, content.slice(0, 50)).catch(console.error);
+      }
+
+      const apiFiles = files.length > 0
+        ? files.map((f) => ({ name: f.name, type: f.type, size: f.size, content: f.content }))
+        : undefined;
+
+      setFiles([]);
+
+      const controller = streamTask(
+        content,
+        { generationType: type },
+        createSSEHandler(conversationId!, content),
+        { conversationId: conversationId!, files: apiFiles },
+      );
+
+      abortRef.current = controller;
+    },
+    [state.activeConversationId, files, createSSEHandler]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading conversations...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -249,9 +548,9 @@ export default function ChatPage() {
           <ConversationSidebar
             conversations={state.conversations}
             activeId={state.activeConversationId}
-            onSelect={(id) => dispatch({ type: "SET_ACTIVE_CONVERSATION", id })}
-            onNew={() => dispatch({ type: "NEW_CONVERSATION" })}
-            onDelete={(id) => dispatch({ type: "DELETE_CONVERSATION", id })}
+            onSelect={handleSelectConversation}
+            onNew={handleNewConversation}
+            onDelete={handleDeleteConversation}
           />
         )}
       </div>
@@ -302,9 +601,12 @@ export default function ChatPage() {
         {/* Input */}
         <ChatInput
           onSend={handleSend}
+          onGenerate={handleGenerate}
           onFileUploadToggle={() => setShowFileUpload(!showFileUpload)}
           disabled={state.isStreaming}
           hasFiles={files.length > 0}
+          initialValue={skillPrompt}
+          isArchitectFollowUp={state.architect.isAwaitingInput}
         />
       </div>
     </div>

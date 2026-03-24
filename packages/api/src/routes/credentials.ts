@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
+import { CredentialRepository } from '../repositories/credential.repository.js';
 
 interface CredentialParams {
   credentialId: string;
@@ -10,12 +11,9 @@ interface CreateCredentialBody {
   apiKey: string;
 }
 
-function maskKey(key: string): string {
-  if (key.length <= 8) return '••••••••';
-  return '••••' + key.slice(-4);
-}
-
 export async function credentialRoutes(app: FastifyInstance) {
+  const credentialRepo = new CredentialRepository();
+
   // ── GET /credentials ──────────────────────────────
   app.get(
     '/credentials',
@@ -27,9 +25,17 @@ export async function credentialRoutes(app: FastifyInstance) {
 
       request.log.info({ tenantId }, 'Listing credentials');
 
-      // Stub: In production, fetches from encrypted credential store
+      const credentials = await credentialRepo.findByTenant(tenantId);
+      
+      const mappedCredentials = credentials.map(c => ({
+        id: c._id,
+        service: c.service,
+        maskedKey: c.maskedKey,
+        createdAt: c.createdAt.toISOString()
+      }));
+
       return reply.success({
-        credentials: [],
+        credentials: mappedCredentials,
       });
     },
   );
@@ -49,14 +55,18 @@ export async function credentialRoutes(app: FastifyInstance) {
         'Creating credential',
       );
 
-      // Stub: In production, encrypts and stores the key
-      const credentialId = `cred_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      const credential = await credentialRepo.create({
+        tenantId,
+        userId: uid,
+        service,
+        apiKey,
+      });
 
       return reply.success({
-        id: credentialId,
-        service,
-        maskedKey: maskKey(apiKey),
-        createdAt: new Date().toISOString(),
+        id: credential._id,
+        service: credential.service,
+        maskedKey: credential.maskedKey,
+        createdAt: credential.createdAt.toISOString(),
       });
     },
   );
@@ -69,13 +79,22 @@ export async function credentialRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const { credentialId } = request.params;
+      const { tenantId } = request.user;
 
       request.log.info(
-        { tenantId: request.user.tenantId, credentialId },
+        { tenantId, credentialId },
         'Deleting credential',
       );
 
-      // Stub: In production, removes from encrypted store
+      const success = await credentialRepo.delete(credentialId, tenantId);
+
+      if (!success) {
+        return reply.status(404).send({
+          success: false,
+          error: { message: 'Credential not found or unauthorized' }
+        });
+      }
+
       return reply.success({
         id: credentialId,
         deletedAt: new Date().toISOString(),

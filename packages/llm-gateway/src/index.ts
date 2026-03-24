@@ -2,7 +2,7 @@
 export { LLMGateway } from './gateway.js';
 
 // ── Router ──────────────────────────────────────────
-export { ModelRouter } from './router.js';
+export { ModelRouter, registerModel } from './router.js';
 export type { ModelSelection, ProviderHealth } from './router.js';
 
 // ── Circuit Breaker ─────────────────────────────────
@@ -15,7 +15,7 @@ export { RateLimiter } from './rate-limiter.js';
 export { CostTracker } from './cost-tracker.js';
 
 // ── Providers ───────────────────────────────────────
-export { AnthropicProvider, OpenAIProvider, BaseLLMProvider, createProvider } from './providers/index.js';
+export { AnthropicProvider, OpenAIProvider, OllamaProvider, BaseLLMProvider, createProvider, registerProvider } from './providers/index.js';
 
 // ── Types ───────────────────────────────────────────
 export type {
@@ -38,4 +38,5 @@ export type {
   ProviderGenerateResult,
   CostRecord,
   CostSummary,
+  GenerationPurpose,
 } from './types.js';

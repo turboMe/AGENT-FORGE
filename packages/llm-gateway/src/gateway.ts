@@ -68,6 +68,7 @@ export class LLMGateway implements ILLMGateway {
       model: params.model,
       quality: params.quality,
       complexity: params.complexity,
+      purpose: params.purpose,
     });
 
     // 2. Try primary provider with retries
@@ -191,8 +192,9 @@ export class LLMGateway implements ILLMGateway {
         this.rateLimiter.recordRequest(providerName);
 
         const result = await provider.generate({
-          prompt: params.prompt,
+          prompt: params.prompt ?? '',
           systemPrompt: params.systemPrompt,
+          messages: params.messages,
           model,
           maxTokens: params.maxTokens ?? modelMaxTokens,
           temperature: params.temperature ?? 0.7,

@@ -5,11 +5,20 @@ import type {
   QualityTier,
   TaskComplexity,
   CircuitState,
+  GenerationPurpose,
 } from './types.js';
 
-// ── Model Registry ──────────────────────────────────
+// ── Built-in Model Registry ─────────────────────────
 
-const MODEL_REGISTRY: ModelConfig[] = [
+const BUILTIN_MODELS: ModelConfig[] = [
+  {
+    id: 'claude-opus-4-6',
+    provider: 'anthropic',
+    quality: 'best',
+    costPer1KInput: 0.015,
+    costPer1KOutput: 0.075,
+    maxTokens: 16384,
+  },
   {
     id: 'claude-sonnet-4-5',
     provider: 'anthropic',
@@ -28,6 +37,21 @@ const MODEL_REGISTRY: ModelConfig[] = [
   },
 ];
 
+// Dynamic registry: starts with builtins, registerModel() adds more
+const MODEL_REGISTRY: ModelConfig[] = [...BUILTIN_MODELS];
+
+/**
+ * Register a new model at runtime (e.g. local Ollama models).
+ */
+export function registerModel(config: ModelConfig): void {
+  const existing = MODEL_REGISTRY.findIndex((m) => m.id === config.id);
+  if (existing >= 0) {
+    MODEL_REGISTRY[existing] = config;
+  } else {
+    MODEL_REGISTRY.push(config);
+  }
+}
+
 // ── Quality → Model Mapping ─────────────────────────
 
 const QUALITY_TO_MODEL: Record<QualityTier, ModelId> = {
@@ -41,14 +65,21 @@ const QUALITY_TO_MODEL: Record<QualityTier, ModelId> = {
 const COMPLEXITY_TO_MODEL: Record<TaskComplexity, ModelId> = {
   simple: 'gpt-4o-mini',
   medium: 'gpt-4o-mini',
-  complex: 'claude-sonnet-4-5',
+  complex: 'claude-opus-4-6',
 };
 
 // ── Explicit Model Shorthand → ModelId ──────────────
 
 const MODEL_SHORTHAND: Record<string, ModelId> = {
   claude: 'claude-sonnet-4-5',
+  opus: 'claude-opus-4-6',
   gpt: 'gpt-4o-mini',
+};
+
+// ── Purpose → preferred model ───────────────────────
+
+const PURPOSE_MODEL: Partial<Record<string, ModelId[]>> = {
+  'prompt-architect': ['claude-opus-4-6', 'claude-sonnet-4-5', 'gpt-4o-mini'],
 };
 
 // ── Fallback Chain ──────────────────────────────────
@@ -80,7 +111,24 @@ export class ModelRouter {
     model?: ModelId | 'auto' | string;
     quality?: QualityTier;
     complexity?: TaskComplexity;
+    purpose?: GenerationPurpose;
   }): ModelSelection {
+    // 0. Purpose-based selection (highest priority)
+    if (params.purpose && PURPOSE_MODEL[params.purpose]) {
+      for (const modelId of PURPOSE_MODEL[params.purpose]!) {
+        const config = this.findModel(modelId);
+        if (config && this.isProviderAvailable(config.provider)) {
+          return {
+            model: config.id,
+            provider: config.provider,
+            config,
+            reason: `purpose:${params.purpose}→${modelId}`,
+          };
+        }
+      }
+      // All purpose models unavailable → fall through
+    }
+
     // 1. Explicit model specified
     if (params.model && params.model !== 'auto') {
       const resolvedId = MODEL_SHORTHAND[params.model] ?? params.model;

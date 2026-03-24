@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Play, Pencil, Trash2, Star, Zap, Clock } from "lucide-react";
+import { Play, Pencil, Trash2, Star, Zap, Clock, Globe, GlobeLock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Skill } from "@/types/skill";
 import { DOMAIN_COLORS } from "@/types/skill";
@@ -11,6 +11,7 @@ interface SkillCardProps {
   onUse: (skill: Skill) => void;
   onEdit: (skill: Skill) => void;
   onDelete: (skill: Skill) => void;
+  onPublish?: (skill: Skill) => void;
 }
 
 function getDomainGradient(domains: string[]): string {
@@ -31,7 +32,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function SkillCard({ skill, onUse, onEdit, onDelete }: SkillCardProps) {
+export function SkillCard({ skill, onUse, onEdit, onDelete, onPublish }: SkillCardProps) {
   const [hovered, setHovered] = useState(false);
   const gradient = getDomainGradient(skill.domain);
 
@@ -69,6 +70,11 @@ export function SkillCard({ skill, onUse, onEdit, onDelete }: SkillCardProps) {
           {skill.isSystem && (
             <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-400">
               System
+            </span>
+          )}
+          {skill.isPublic && (
+            <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+              Public
             </span>
           )}
         </div>
@@ -141,6 +147,22 @@ export function SkillCard({ skill, onUse, onEdit, onDelete }: SkillCardProps) {
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
+        {onPublish && (
+          <button
+            type="button"
+            onClick={() => onPublish(skill)}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+              skill.isPublic
+                ? "text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+            aria-label={skill.isPublic ? "Unpublish from marketplace" : "Publish to marketplace"}
+            title={skill.isPublic ? "Unpublish from marketplace" : "Publish to marketplace"}
+          >
+            {skill.isPublic ? <Globe className="h-3.5 w-3.5" /> : <GlobeLock className="h-3.5 w-3.5" />}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onDelete(skill)}

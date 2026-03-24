@@ -2,14 +2,36 @@ import { z } from 'zod';
 
 export const CreateTaskSchema = z.object({
   task: z.string().min(1).max(10000),
+  conversationId: z.string().optional(),
+  files: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.string(),
+        size: z.number(),
+        content: z.string().optional(),
+      }),
+    )
+    .optional(),
   options: z
     .object({
-      model: z.enum(['auto', 'claude', 'gpt', 'gemini']).default('auto'),
+      model: z.string().default('auto'),
       quality: z.enum(['fast', 'balanced', 'best']).default('balanced'),
       forceNewSkill: z.boolean().default(false),
       language: z.string().length(2).default('en'),
       context: z.record(z.string()).optional(),
+      generationType: z.enum(['skill', 'agent', 'auto']).optional(),
     })
+    .optional(),
+  // Prompt Architect V2: follow-up conversation
+  isArchitectFollowUp: z.boolean().optional(),
+  architectHistory: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      }),
+    )
     .optional(),
 });
 

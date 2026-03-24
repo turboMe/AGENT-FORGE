@@ -1,6 +1,9 @@
 // === Types ===
-export type { ITenant, IUser, ISkill, ITask, IDecision, IUsageDaily, IApiKey } from './types/index.js';
+export type { ITenant, IUser, ISkill, ITask, IDecision, IUsageDaily, IApiKey, ICredential, IUserProfile } from './types/index.js';
 export type { TaskOptions, RoutingResult, ExecutionResult } from './types/index.js';
+export type { IWorkflow, IWorkflowRun, IWorkflowParameter, WorkflowStatus, WorkflowRunStatus } from './types/index.js';
+export type { IConversation, IConversationMessage, IConversationFile } from './types/index.js';
+export type { FileAttachment } from './types/index.js';
 
 // === Errors ===
 export {
@@ -17,4 +20,4 @@ export {
 export { CreateTaskSchema, CreateSkillSchema, RateSkillSchema } from './validators/index.js';
 
 // === Constants ===
-export { TIER_LIMITS, MODEL_CONFIG, DEFAULT_SETTINGS, ROUTING_THRESHOLDS, QUALITY_THRESHOLDS } from './constants.js';
+export { TIER_LIMITS, MODEL_CONFIG, DEFAULT_SETTINGS, ROUTING_THRESHOLDS, QUALITY_THRESHOLDS, ARCHITECT_CONFIG } from './constants.js';

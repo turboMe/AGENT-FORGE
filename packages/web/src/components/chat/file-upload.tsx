@@ -42,24 +42,40 @@ export function FileUpload({ files, onFilesChange, onClose }: FileUploadProps) {
 
   const addFiles = useCallback(
     (fileList: FileList | File[]) => {
-      const newFiles: UploadedFile[] = [];
       const arr = Array.from(fileList);
+      const readPromises: Promise<UploadedFile | null>[] = arr.map((file) => {
+        if (!ACCEPTED_TYPES.includes(file.type)) return Promise.resolve(null);
+        if (file.size > MAX_FILE_SIZE) return Promise.resolve(null);
 
-      for (const file of arr) {
-        if (!ACCEPTED_TYPES.includes(file.type)) continue;
-        if (file.size > MAX_FILE_SIZE) continue;
+        return new Promise<UploadedFile>((resolve) => {
+          const meta: UploadedFile = {
+            id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          };
 
-        newFiles.push({
-          id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          name: file.name,
-          size: file.size,
-          type: file.type,
+          // Read text-based files content
+          if (file.type.startsWith('text/') || file.type === 'application/json') {
+            const reader = new FileReader();
+            reader.onload = () => {
+              meta.content = reader.result as string;
+              resolve(meta);
+            };
+            reader.onerror = () => resolve(meta); // fallback without content
+            reader.readAsText(file);
+          } else {
+            resolve(meta);
+          }
         });
-      }
+      });
 
-      if (newFiles.length > 0) {
-        onFilesChange([...files, ...newFiles]);
-      }
+      Promise.all(readPromises).then((results) => {
+        const newFiles = results.filter((f): f is UploadedFile => f !== null);
+        if (newFiles.length > 0) {
+          onFilesChange([...files, ...newFiles]);
+        }
+      });
     },
     [files, onFilesChange]
   );

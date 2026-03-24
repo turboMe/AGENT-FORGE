@@ -1,8 +1,16 @@
+import { config } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+config({ path: join(__dirname, '../../../.env') });
+
 import { buildServer } from './app.js';
 
 export { buildServer };
 
-const PORT = Number(process.env['PORT']) || 3000;
+const PORT = Number(process.env['PORT']) || 3333;
 const HOST = process.env['HOST'] || '0.0.0.0';
 
 async function start() {

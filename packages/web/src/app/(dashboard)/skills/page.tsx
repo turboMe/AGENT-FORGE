@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Library, Sparkles } from "lucide-react";
 import { SkillCard } from "@/components/skills/skill-card";
@@ -8,170 +8,13 @@ import { SkillFilters } from "@/components/skills/skill-filters";
 import { SkillSort } from "@/components/skills/skill-sort";
 import { DeleteSkillModal } from "@/components/skills/delete-skill-modal";
 import { EditSkillInline } from "@/components/skills/edit-skill-inline";
+import { fetchSkills, updateSkill, deleteSkill, publishSkill } from "@/lib/api";
 import type {
   Skill,
   SkillFilters as SkillFiltersType,
   SkillSort as SkillSortType,
   SkillUpdatePayload,
 } from "@/types/skill";
-
-// ── Mock data (used until API returns real data) ────
-
-const MOCK_SKILLS: Skill[] = [
-  {
-    id: "sk_001",
-    name: "Cold Outreach Writer",
-    slug: "cold-outreach-writer",
-    description:
-      "Generates personalized cold outreach emails for B2B contexts, optimized for open and response rates. Specialized in HoReCa, FoodTech, and SaaS sales.",
-    domain: ["sales", "marketing"],
-    pattern: "generator",
-    tags: ["email", "outreach", "b2b", "cold-email"],
-    version: 1,
-    isSystem: true,
-    isPublic: true,
-    stats: { useCount: 142, totalRatings: 38, avgSatisfaction: 4.6, lastUsedAt: "2026-03-22T10:30:00Z" },
-    createdBy: "system",
-    createdAt: "2026-01-15T12:00:00Z",
-    updatedAt: "2026-03-20T08:00:00Z",
-  },
-  {
-    id: "sk_002",
-    name: "Food Cost Analyst",
-    slug: "food-cost-analyst",
-    description:
-      "Analyzes restaurant menu food cost ratios, identifies high-cost items, and proposes concrete optimization strategies for better margins.",
-    domain: ["analysis", "data"],
-    pattern: "analyzer",
-    tags: ["food-cost", "restaurant", "margins", "menu"],
-    version: 2,
-    isSystem: true,
-    isPublic: true,
-    stats: { useCount: 87, totalRatings: 22, avgSatisfaction: 4.8, lastUsedAt: "2026-03-21T14:20:00Z" },
-    createdBy: "system",
-    createdAt: "2026-01-20T09:00:00Z",
-    updatedAt: "2026-03-18T11:00:00Z",
-  },
-  {
-    id: "sk_003",
-    name: "Prompt Architect",
-    slug: "prompt-architect",
-    description:
-      "Elite prompt/skill/agent creator that diagnoses user needs and crafts precision-engineered prompts, skills, and custom agents for any LLM platform.",
-    domain: ["engineering"],
-    pattern: "generator",
-    tags: ["prompt", "skill", "agent", "llm"],
-    version: 3,
-    isSystem: true,
-    isPublic: true,
-    stats: { useCount: 256, totalRatings: 64, avgSatisfaction: 4.9, lastUsedAt: "2026-03-22T15:00:00Z" },
-    createdBy: "system",
-    createdAt: "2026-01-10T08:00:00Z",
-    updatedAt: "2026-03-22T12:00:00Z",
-  },
-  {
-    id: "sk_004",
-    name: "Business Coach IT/Hospitality",
-    slug: "business-coach-it-hospitality",
-    description:
-      "Elite AI business coach specialized in IT and Hospitality sectors. Expert in market research, niche identification, brand building, and startup evaluation.",
-    domain: ["marketing", "analysis"],
-    pattern: "processor",
-    tags: ["business", "coaching", "startup", "strategy"],
-    version: 1,
-    isSystem: true,
-    isPublic: true,
-    stats: { useCount: 63, totalRatings: 15, avgSatisfaction: 4.4, lastUsedAt: "2026-03-19T09:30:00Z" },
-    createdBy: "system",
-    createdAt: "2026-02-01T10:00:00Z",
-    updatedAt: "2026-03-15T16:00:00Z",
-  },
-  {
-    id: "sk_005",
-    name: "Code Review Assistant",
-    slug: "code-review-assistant",
-    description:
-      "Performs thorough code reviews focusing on correctness, performance, security, and best practices. Supports TypeScript, Python, and Go.",
-    domain: ["engineering", "security"],
-    pattern: "reviewer",
-    tags: ["code-review", "typescript", "python", "security"],
-    version: 1,
-    isSystem: false,
-    isPublic: false,
-    stats: { useCount: 198, totalRatings: 45, avgSatisfaction: 4.7, lastUsedAt: "2026-03-22T14:00:00Z" },
-    createdBy: "user_001",
-    createdAt: "2026-02-10T14:00:00Z",
-    updatedAt: "2026-03-21T10:00:00Z",
-  },
-  {
-    id: "sk_006",
-    name: "Data Pipeline Designer",
-    slug: "data-pipeline-designer",
-    description:
-      "Designs and documents ETL/ELT data pipelines using modern patterns. Specializes in real-time streaming and batch processing architectures.",
-    domain: ["data", "devops"],
-    pattern: "planner",
-    tags: ["etl", "pipeline", "streaming", "architecture"],
-    version: 1,
-    isSystem: false,
-    isPublic: true,
-    stats: { useCount: 34, totalRatings: 8, avgSatisfaction: 4.2, lastUsedAt: "2026-03-18T11:00:00Z" },
-    createdBy: "user_001",
-    createdAt: "2026-03-01T09:00:00Z",
-    updatedAt: "2026-03-18T11:00:00Z",
-  },
-  {
-    id: "sk_007",
-    name: "SEO Content Optimizer",
-    slug: "seo-content-optimizer",
-    description:
-      "Optimizes web content for search engines while maintaining readability. Analyzes keyword density, meta tags, headings, and internal linking patterns.",
-    domain: ["marketing", "writing"],
-    pattern: "transformer",
-    tags: ["seo", "content", "keywords", "optimization"],
-    version: 1,
-    isSystem: false,
-    isPublic: true,
-    stats: { useCount: 76, totalRatings: 19, avgSatisfaction: 4.3, lastUsedAt: "2026-03-20T16:00:00Z" },
-    createdBy: "user_002",
-    createdAt: "2026-02-15T11:00:00Z",
-    updatedAt: "2026-03-20T16:00:00Z",
-  },
-  {
-    id: "sk_008",
-    name: "API Documentation Generator",
-    slug: "api-documentation-generator",
-    description:
-      "Generates comprehensive API documentation from code, OpenAPI specs, or natural language descriptions. Outputs markdown, HTML, or RST formats.",
-    domain: ["engineering", "writing"],
-    pattern: "generator",
-    tags: ["api", "documentation", "openapi", "markdown"],
-    version: 2,
-    isSystem: false,
-    isPublic: true,
-    stats: { useCount: 112, totalRatings: 28, avgSatisfaction: 4.5, lastUsedAt: "2026-03-22T09:00:00Z" },
-    createdBy: "user_001",
-    createdAt: "2026-01-25T15:00:00Z",
-    updatedAt: "2026-03-22T09:00:00Z",
-  },
-  {
-    id: "sk_009",
-    name: "Security Vulnerability Scanner",
-    slug: "security-vulnerability-scanner",
-    description:
-      "Analyzes code and infrastructure configurations for security vulnerabilities. Cross-references OWASP Top 10 and CVE databases.",
-    domain: ["security", "engineering"],
-    pattern: "analyzer",
-    tags: ["security", "vulnerability", "owasp", "cve"],
-    version: 1,
-    isSystem: false,
-    isPublic: false,
-    stats: { useCount: 45, totalRatings: 12, avgSatisfaction: 4.1, lastUsedAt: "2026-03-17T13:00:00Z" },
-    createdBy: "user_003",
-    createdAt: "2026-02-20T08:00:00Z",
-    updatedAt: "2026-03-17T13:00:00Z",
-  },
-];
 
 // ── Skeleton card ───────────────────────────────────
 
@@ -227,8 +70,8 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 export default function SkillsPage() {
   const router = useRouter();
 
-  const [skills, setSkills] = useState<Skill[]>(MOCK_SKILLS);
-  const [loading] = useState(false);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<SkillFiltersType>({
     search: "",
     domain: null,
@@ -241,56 +84,41 @@ export default function SkillsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingSkill, setDeletingSkill] = useState<Skill | null>(null);
 
-  // ── Filter & Sort ───────────────────────────────
+  // ── Fetch skills from API ───────────────────────
 
-  const filteredSkills = useMemo(() => {
-    let result = [...skills];
+  useEffect(() => {
+    let cancelled = false;
 
-    // Search
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      result = result.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.description.toLowerCase().includes(q) ||
-          s.tags.some((t) => t.toLowerCase().includes(q))
-      );
-    }
-
-    // Domain
-    if (filters.domain) {
-      result = result.filter((s) => s.domain.includes(filters.domain!));
-    }
-
-    // Pattern
-    if (filters.pattern) {
-      result = result.filter((s) => s.pattern === filters.pattern);
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      const dir = sort.order === "desc" ? -1 : 1;
-      switch (sort.field) {
-        case "use_count":
-          return (a.stats.useCount - b.stats.useCount) * dir;
-        case "satisfaction":
-          return (
-            ((a.stats.avgSatisfaction ?? 0) - (b.stats.avgSatisfaction ?? 0)) *
-            dir
-          );
-        case "created_at":
-          return (
-            (new Date(a.createdAt).getTime() -
-              new Date(b.createdAt).getTime()) *
-            dir
-          );
-        default:
-          return 0;
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await fetchSkills({
+          search: filters.search || undefined,
+          domain: filters.domain || undefined,
+          pattern: filters.pattern || undefined,
+          sort: `${sort.field}:${sort.order}`,
+          limit: 100,
+        });
+        if (!cancelled) {
+          setSkills(res.skills);
+        }
+      } catch (err) {
+        console.error("Failed to load skills:", err);
+        if (!cancelled) {
+          setSkills([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    });
+    }
 
-    return result;
-  }, [skills, filters, sort]);
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.search, filters.domain, filters.pattern, sort.field, sort.order]);
 
   // ── Handlers ────────────────────────────────────
 
@@ -316,7 +144,7 @@ export default function SkillsPage() {
       setEditingId(null);
 
       // Fire API call (non-blocking)
-      // updateSkill(id, data).catch(console.error);
+      updateSkill(id, data).catch(console.error);
     },
     []
   );
@@ -333,15 +161,35 @@ export default function SkillsPage() {
     setDeletingSkill(null);
 
     // Fire API call (non-blocking)
-    // deleteSkill(deletingSkill.id).catch(console.error);
+    deleteSkill(deletingSkill.id).catch(console.error);
   }, [deletingSkill]);
+
+  const handlePublish = useCallback((skill: Skill) => {
+    // Optimistic toggle
+    setSkills((prev) =>
+      prev.map((s) =>
+        s.id === skill.id ? { ...s, isPublic: !s.isPublic } : s
+      )
+    );
+
+    // Fire API call
+    publishSkill(skill.id).catch((err) => {
+      console.error("Failed to toggle publish:", err);
+      // Revert on failure
+      setSkills((prev) =>
+        prev.map((s) =>
+          s.id === skill.id ? { ...s, isPublic: skill.isPublic } : s
+        )
+      );
+    });
+  }, []);
 
   const hasFilters = !!(filters.search || filters.domain || filters.pattern);
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
       {/* Header */}
-      <div className="border-b border-border/50 bg-background/80 backdrop-blur-xl px-6 py-5">
+      <div className="relative z-10 border-b border-border/50 bg-background/80 backdrop-blur-xl px-6 py-5">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/20">
             <Sparkles className="h-5 w-5 text-white" />
@@ -349,8 +197,9 @@ export default function SkillsPage() {
           <div>
             <h1 className="text-lg font-bold text-foreground">Skill Library</h1>
             <p className="text-xs text-muted-foreground">
-              {filteredSkills.length} skill{filteredSkills.length !== 1 ? "s" : ""}{" "}
-              {hasFilters ? "matching" : "available"}
+              {loading
+                ? "Loading..."
+                : `${skills.length} skill${skills.length !== 1 ? "s" : ""} ${hasFilters ? "matching" : "available"}`}
             </p>
           </div>
         </div>
@@ -374,11 +223,11 @@ export default function SkillsPage() {
               <SkillCardSkeleton key={i} />
             ))}
           </div>
-        ) : filteredSkills.length === 0 ? (
+        ) : skills.length === 0 ? (
           <EmptyState hasFilters={hasFilters} />
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 stagger-in">
-            {filteredSkills.map((skill) =>
+            {skills.map((skill) =>
               editingId === skill.id ? (
                 <EditSkillInline
                   key={skill.id}
@@ -393,6 +242,7 @@ export default function SkillsPage() {
                   onUse={handleUse}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onPublish={handlePublish}
                 />
               )
             )}

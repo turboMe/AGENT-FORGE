@@ -18,22 +18,30 @@ export class AnthropicProvider extends BaseLLMProvider {
       apiKey: this.apiKey,
       ...(this.baseUrl ? { baseURL: this.baseUrl } : {}),
       timeout: this.timeoutMs,
+      maxRetries: 0, // Gateway handles retries — disable SDK-level retries
     });
   }
 
   async generate(params: ProviderGenerateParams): Promise<ProviderGenerateResult> {
     try {
+      // Build messages: use explicit messages[] if provided, otherwise wrap prompt
+      const messages: Anthropic.MessageParam[] = params.messages?.length
+        ? params.messages
+            .filter((m) => m.role !== 'system')
+            .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+        : [{ role: 'user' as const, content: params.prompt }];
+
+      // Extract system prompt: explicit param OR from messages array
+      const systemPrompt =
+        params.systemPrompt ??
+        params.messages?.find((m) => m.role === 'system')?.content;
+
       const response = await this.client.messages.create({
         model: params.model,
         max_tokens: params.maxTokens,
         temperature: params.temperature,
-        ...(params.systemPrompt ? { system: params.systemPrompt } : {}),
-        messages: [
-          {
-            role: 'user',
-            content: params.prompt,
-          },
-        ],
+        ...(systemPrompt ? { system: systemPrompt } : {}),
+        messages,
       });
 
       const textContent = response.content.find((block) => block.type === 'text');
