@@ -39,16 +39,16 @@ export const CreateSkillSchema = z.object({
   name: z
     .string()
     .min(1)
-    .max(100)
-    .regex(/^[a-z0-9-]+$/),
-  description: z.string().min(10).max(1000),
+    .max(200),
+  description: z.string().min(1).max(2000),
   domain: z.array(z.string()).min(1).max(10),
   pattern: z.string(),
   template: z.object({
-    persona: z.string().min(10),
-    process: z.array(z.string()).min(1),
+    persona: z.string().min(1),
+    process: z.array(z.string()),
     outputFormat: z.string(),
     constraints: z.array(z.string()),
+    systemPrompt: z.string().optional(),
     examples: z
       .array(
         z.object({

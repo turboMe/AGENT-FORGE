@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { User, Sparkles, Copy, Check, Wand2, Bot } from "lucide-react";
+import { User, Sparkles, Copy, Check, Wand2, Bot, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/chat";
+import { createSkill } from "@/lib/api";
 
 interface MessageListProps {
   messages: Message[];
@@ -39,14 +40,75 @@ function parseDeliverable(content: string) {
   return { brief, prompt, deployNote };
 }
 
+/** Extract structured skill data from generated prompt content */
+function extractSkillData(prompt: string, brief: string, deliverableType?: string) {
+  // Extract name from ## Identity section (first sentence or line)
+  const identityMatch = prompt.match(/## Identity\s*\n+([\s\S]*?)(?=\n##|\n*$)/);
+  const identityText = identityMatch?.[1]?.trim() ?? '';
+  // Use first sentence or first 60 chars as name
+  const firstSentence = identityText.split(/[.\n]/)[0]?.trim() ?? '';
+  const name = firstSentence.length > 8
+    ? firstSentence.slice(0, 80).replace(/^You are (?:an? )?/i, '').trim()
+    : 'Generated ' + (deliverableType === 'agent' ? 'Agent' : 'Skill');
+
+  // Capitalize first letter
+  const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+
+  const description = brief || identityText.slice(0, 200) || 'Auto-generated from chat';
+
+  // Extract sections
+  const processMatch = prompt.match(/## (?:Process|Workflow)\s*\n+([\s\S]*?)(?=\n##|\n*$)/);
+  const processSteps = processMatch?.[1]
+    ?.split('\n')
+    .map(l => l.replace(/^\d+\.\s*/, '').trim())
+    .filter(l => l.length > 0) ?? [];
+
+  const outputMatch = prompt.match(/## Output Format\s*\n+([\s\S]*?)(?=\n##|\n*$)/);
+  const outputFormat = outputMatch?.[1]?.trim() ?? '';
+
+  const constraintsMatch = prompt.match(/## Constraints\s*\n+([\s\S]*?)(?=\n##|\n*$)/);
+  const constraints = constraintsMatch?.[1]
+    ?.split('\n')
+    .map(l => l.replace(/^[-•*]\s*/, '').trim())
+    .filter(l => l.length > 0) ?? [];
+
+  return {
+    name: capitalizedName,
+    description,
+    domain: ['general'],
+    pattern: deliverableType === 'agent' ? 'agent' : 'skill',
+    template: {
+      persona: identityText,
+      process: processSteps,
+      outputFormat,
+      constraints,
+      systemPrompt: prompt,
+    },
+  };
+}
+
 function DeliverableContent({ message }: { message: Message }) {
   const [copied, setCopied] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const { brief, prompt, deployNote } = parseDeliverable(message.content);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(prompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSave = async () => {
+    setSaveState('saving');
+    try {
+      const skillData = extractSkillData(prompt, brief, message.deliverableType);
+      await createSkill(skillData);
+      setSaveState('saved');
+    } catch (err) {
+      console.error('Failed to save skill:', err);
+      setSaveState('error');
+      setTimeout(() => setSaveState('idle'), 3000);
+    }
   };
 
   const isAgent = message.deliverableType === "agent";
@@ -73,27 +135,64 @@ function DeliverableContent({ message }: { message: Message }) {
             {isAgent ? <Bot className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
             <span>Generated {isAgent ? "Agent" : "Skill"} Prompt</span>
           </div>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className={cn(
-              "flex items-center gap-1 rounded px-2 py-0.5 transition-all",
-              "hover:bg-white/10",
-              copied && "text-emerald-400"
-            )}
-          >
-            {copied ? (
-              <>
-                <Check className="h-3 w-3" />
-                <span>Copied</span>
-              </>
-            ) : (
-              <>
-                <Copy className="h-3 w-3" />
-                <span>Copy</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Save to Library button */}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saveState === 'saving' || saveState === 'saved'}
+              className={cn(
+                "flex items-center gap-1 rounded px-2 py-0.5 transition-all",
+                saveState === 'saved'
+                  ? "text-emerald-400"
+                  : saveState === 'error'
+                  ? "text-red-400"
+                  : "hover:bg-white/10",
+                (saveState === 'saving' || saveState === 'saved') && "opacity-70 cursor-default"
+              )}
+            >
+              {saveState === 'saved' ? (
+                <>
+                  <Check className="h-3 w-3" />
+                  <span>Saved</span>
+                </>
+              ) : saveState === 'saving' ? (
+                <>
+                  <Save className="h-3 w-3 animate-pulse" />
+                  <span>Saving…</span>
+                </>
+              ) : saveState === 'error' ? (
+                <span>Failed</span>
+              ) : (
+                <>
+                  <Save className="h-3 w-3" />
+                  <span>Save to Library</span>
+                </>
+              )}
+            </button>
+            {/* Copy button */}
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={cn(
+                "flex items-center gap-1 rounded px-2 py-0.5 transition-all",
+                "hover:bg-white/10",
+                copied && "text-emerald-400"
+              )}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3 w-3" />
+                  <span>Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3 w-3" />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Prompt content */}

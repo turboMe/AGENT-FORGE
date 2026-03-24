@@ -96,6 +96,30 @@ export async function deleteSkill(skillId: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete skill: ${res.status}`);
 }
 
+export interface CreateSkillPayload {
+  name: string;
+  description: string;
+  domain: string[];
+  pattern: string;
+  template: {
+    persona: string;
+    process: string[];
+    outputFormat: string;
+    constraints: string[];
+    systemPrompt?: string;
+  };
+}
+
+export async function createSkill(data: CreateSkillPayload): Promise<Skill> {
+  const res = await authFetch(`${API_BASE}/skills`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create skill: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
 /**
  * Stream a task through the AgentForge pipeline via SSE.
  * Automatically prepends "/route " to every task.
