@@ -27,6 +27,9 @@ const DecisionSchema = new Schema(
     },
     newSkillCreated: { type: String },
     executionSuccess: { type: Boolean, default: false },
+    costUsd: { type: Number, default: 0 },
+    tokens: { type: Number, default: 0 },
+    latencyMs: { type: Number, default: 0 },
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: false },
@@ -78,8 +81,12 @@ export class LocalDecisionLogger {
     return doc ? this.toDecision(doc as any) : null;
   }
 
-  async markSuccess(taskId: string): Promise<void> {
-    await this.model.updateOne({ taskId }, { $set: { executionSuccess: true } });
+  async markSuccess(taskId: string, metrics?: { costUsd?: number; tokens?: number; latencyMs?: number }): Promise<void> {
+    const update: Record<string, unknown> = { executionSuccess: true };
+    if (metrics?.costUsd !== undefined) update.costUsd = metrics.costUsd;
+    if (metrics?.tokens !== undefined) update.tokens = metrics.tokens;
+    if (metrics?.latencyMs !== undefined) update.latencyMs = metrics.latencyMs;
+    await this.model.updateOne({ taskId }, { $set: update });
   }
 
   async findByTenant(tenantId: string, limit = 50): Promise<IDecision[]> {

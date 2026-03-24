@@ -39,4 +39,6 @@ export type {
   CostRecord,
   CostSummary,
   GenerationPurpose,
+  ContentBlock,
+  MessageContent,
 } from './types.js';

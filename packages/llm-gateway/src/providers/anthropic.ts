@@ -5,6 +5,7 @@ import type {
   ProviderConfig,
   ProviderGenerateParams,
   ProviderGenerateResult,
+  ContentBlock,
 } from '../types.js';
 import { BaseLLMProvider } from './base.js';
 
@@ -22,19 +23,39 @@ export class AnthropicProvider extends BaseLLMProvider {
     });
   }
 
+  /** Convert our ContentBlock[] to Anthropic's content format */
+  private toAnthropicContent(content: string | ContentBlock[]): string | Anthropic.ContentBlockParam[] {
+    if (typeof content === 'string') return content;
+    return content.map((block): Anthropic.ContentBlockParam => {
+      if (block.type === 'text') {
+        return { type: 'text', text: block.text };
+      }
+      // image block → Anthropic vision format
+      return {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: block.mediaType as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
+          data: block.base64Data,
+        },
+      };
+    });
+  }
+
   async generate(params: ProviderGenerateParams): Promise<ProviderGenerateResult> {
     try {
       // Build messages: use explicit messages[] if provided, otherwise wrap prompt
       const messages: Anthropic.MessageParam[] = params.messages?.length
         ? params.messages
             .filter((m) => m.role !== 'system')
-            .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+            .map((m) => ({ role: m.role as 'user' | 'assistant', content: this.toAnthropicContent(m.content) }))
         : [{ role: 'user' as const, content: params.prompt }];
 
       // Extract system prompt: explicit param OR from messages array
+      const systemFromMessages = params.messages?.find((m) => m.role === 'system');
       const systemPrompt =
         params.systemPrompt ??
-        params.messages?.find((m) => m.role === 'system')?.content;
+        (systemFromMessages && typeof systemFromMessages.content === 'string' ? systemFromMessages.content : undefined);
 
       const response = await this.client.messages.create({
         model: params.model,

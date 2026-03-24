@@ -36,8 +36,8 @@ export class OllamaProvider extends BaseLLMProvider {
       if (params.messages?.length) {
         messages = params.messages.map((m) => ({
           role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content,
-        }));
+          content: typeof m.content === 'string' ? m.content : m.content.filter(b => b.type === 'text').map(b => (b as { type: 'text'; text: string }).text).join('\n'),
+        } as OpenAI.ChatCompletionMessageParam));
       } else {
         messages = [];
         if (params.systemPrompt) {

@@ -70,12 +70,20 @@ export interface GatewayConfig {
   defaultQuality?: QualityTier;
 }
 
+// ── Multimodal Content Blocks ───────────────────────
+
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; mediaType: string; base64Data: string };
+
+export type MessageContent = string | ContentBlock[];
+
 // ── Generate Params & Result ────────────────────────
 
 export interface LLMGenerateParams {
   prompt?: string;
   systemPrompt?: string;
-  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: MessageContent }>;
   model?: ModelId | 'auto';
   quality?: QualityTier;
   complexity?: TaskComplexity;
@@ -99,7 +107,7 @@ export interface LLMGenerateResult {
 export interface ProviderGenerateParams {
   prompt: string;
   systemPrompt?: string;
-  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: MessageContent }>;
   model: string;
   maxTokens: number;
   temperature: number;

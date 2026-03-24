@@ -139,7 +139,7 @@ export async function analyticsRoutes(app: FastifyInstance) {
         totalDecisions: totalDecisionsCount,
         totalSkills: topSkills.length, // Just using unique skills from usage as proxy
         avgHitRate: successAgg[0]?.total ? parseFloat(((successAgg[0].success / successAgg[0].total) * 100).toFixed(1)) : 0,
-        totalCost: totalCostAgg[0]?.totalCost ? parseFloat(totalCostAgg[0].totalCost.toFixed(2)) : 0,
+        totalCost: totalCostAgg[0]?.totalCost ? parseFloat(totalCostAgg[0].totalCost.toFixed(4)) : 0,
       };
 
       const formattedTopSkills = topSkills.map(t => ({

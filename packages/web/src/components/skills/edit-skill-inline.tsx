@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Save, X, Plus } from "lucide-react";
+import { Save, X, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SKILL_PATTERNS, SKILL_DOMAINS } from "@/types/skill";
 import type { Skill, SkillUpdatePayload } from "@/types/skill";
@@ -18,6 +18,9 @@ export function EditSkillInline({ skill, onSave, onCancel }: EditSkillInlineProp
   const [domains, setDomains] = useState<string[]>([...skill.domain]);
   const [pattern, setPattern] = useState(skill.pattern);
   const [domainInput, setDomainInput] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState(skill.template?.systemPrompt ?? "");
+  const [persona, setPersona] = useState(skill.template?.persona ?? "");
+  const [showTemplate, setShowTemplate] = useState(true);
 
   const handleAddDomain = () => {
     const trimmed = domainInput.trim().toLowerCase();
@@ -32,19 +35,36 @@ export function EditSkillInline({ skill, onSave, onCancel }: EditSkillInlineProp
   };
 
   const handleSubmit = () => {
-    onSave(skill.id, {
+    const payload: SkillUpdatePayload = {
       name: name.trim(),
       description: description.trim(),
       domain: domains,
       pattern,
-    });
+    };
+
+    // Include template updates if changed
+    const templateChanged =
+      systemPrompt !== (skill.template?.systemPrompt ?? "") ||
+      persona !== (skill.template?.persona ?? "");
+
+    if (templateChanged) {
+      payload.template = {
+        ...skill.template,
+        systemPrompt: systemPrompt.trim(),
+        persona: persona.trim(),
+      };
+    }
+
+    onSave(skill.id, payload);
   };
 
   const isDirty =
     name !== skill.name ||
     description !== skill.description ||
     pattern !== skill.pattern ||
-    JSON.stringify(domains) !== JSON.stringify(skill.domain);
+    JSON.stringify(domains) !== JSON.stringify(skill.domain) ||
+    systemPrompt !== (skill.template?.systemPrompt ?? "") ||
+    persona !== (skill.template?.persona ?? "");
 
   return (
     <div className="rounded-2xl border border-violet-500/30 bg-card p-5 shadow-lg shadow-violet-500/5 animate-in slide-in-from-bottom-2">
@@ -80,6 +100,58 @@ export function EditSkillInline({ skill, onSave, onCancel }: EditSkillInlineProp
             "transition-all duration-200"
           )}
         />
+      </div>
+
+      {/* Template Section (collapsible) */}
+      <div className="mb-3">
+        <button
+          type="button"
+          onClick={() => setShowTemplate(!showTemplate)}
+          className="flex items-center gap-1.5 mb-2 text-[11px] font-medium uppercase tracking-wider text-violet-400 hover:text-violet-300 transition-colors"
+        >
+          {showTemplate ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          Prompt Template
+        </button>
+
+        {showTemplate && (
+          <div className="space-y-3 rounded-lg border border-border/50 bg-secondary/20 p-3">
+            {/* System Prompt */}
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                System Prompt
+              </label>
+              <textarea
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                rows={8}
+                placeholder="Full system prompt for this skill..."
+                className={cn(
+                  "w-full resize-y rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground font-mono",
+                  "focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/50",
+                  "transition-all duration-200 min-h-[120px]"
+                )}
+              />
+            </div>
+
+            {/* Persona */}
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Persona / Identity
+              </label>
+              <textarea
+                value={persona}
+                onChange={(e) => setPersona(e.target.value)}
+                rows={3}
+                placeholder="AI persona description..."
+                className={cn(
+                  "w-full resize-y rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground",
+                  "focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/50",
+                  "transition-all duration-200"
+                )}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Domains (tag input) */}

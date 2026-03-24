@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
-import { Send, Paperclip, Loader2, Wand2, Bot } from "lucide-react";
+import { Send, Paperclip, Loader2, Wand2, Bot, Zap, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface AttachedSkill {
+  id: string;
+  name: string;
+}
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -10,7 +15,9 @@ interface ChatInputProps {
   onFileUploadToggle: () => void;
   disabled?: boolean;
   hasFiles?: boolean;
-  initialValue?: string;
+  /** Skill attached from "Use" button on Skills page */
+  attachedSkill?: AttachedSkill | null;
+  onDetachSkill?: () => void;
   /** When architect is waiting for follow-up, show a special placeholder */
   isArchitectFollowUp?: boolean;
 }
@@ -21,27 +28,21 @@ export function ChatInput({
   onFileUploadToggle,
   disabled = false,
   hasFiles = false,
-  initialValue,
+  attachedSkill,
+  onDetachSkill,
   isArchitectFollowUp = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Pre-fill from external source (e.g. skill "Use" button)
+  // Focus textarea when skill is attached
   useEffect(() => {
-    if (initialValue) {
-      setValue(initialValue);
-      // Auto-resize textarea after setting value
+    if (attachedSkill) {
       requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          textarea.style.height = "auto";
-          textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-          textarea.focus();
-        }
+        textareaRef.current?.focus();
       });
     }
-  }, [initialValue]);
+  }, [attachedSkill]);
 
   const handleSend = () => {
     const trimmed = value.trim();
@@ -83,6 +84,31 @@ export function ChatInput({
   return (
     <div className="border-t border-border bg-background/80 backdrop-blur-xl px-4 py-3">
       <div className="mx-auto max-w-3xl space-y-2">
+        {/* Attached skill badge */}
+        {attachedSkill && (
+          <div className="flex items-center gap-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+            <div className={cn(
+              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium",
+              "bg-gradient-to-r from-violet-500/15 to-indigo-500/15 text-violet-300",
+              "border border-violet-500/30"
+            )}>
+              <Zap className="h-3 w-3 text-violet-400" />
+              <span className="text-muted-foreground">Skill:</span>
+              <span className="text-violet-300 font-semibold max-w-[200px] truncate">
+                {attachedSkill.name}
+              </span>
+              <button
+                type="button"
+                onClick={onDetachSkill}
+                className="ml-1 rounded-full p-0.5 hover:bg-violet-500/20 text-muted-foreground hover:text-violet-300 transition-colors"
+                aria-label="Detach skill"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Generate buttons — appear when there's content */}
         {showGenerateButtons && (
           <div className="flex items-center gap-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
@@ -143,7 +169,9 @@ export function ChatInput({
               placeholder={
                 isArchitectFollowUp
                   ? "Answer the architect's questions..."
-                  : "Describe your task..."
+                  : attachedSkill
+                    ? `What would you like "${attachedSkill.name}" to do?`
+                    : "Describe your task..."
               }
               disabled={disabled}
               rows={1}
@@ -154,7 +182,8 @@ export function ChatInput({
                 "disabled:opacity-50 disabled:cursor-not-allowed",
                 "transition-all duration-200",
                 "scrollbar-thin scrollbar-thumb-border",
-                isArchitectFollowUp && "border-amber-500/30 focus:ring-amber-500/40 focus:border-amber-500/50"
+                isArchitectFollowUp && "border-amber-500/30 focus:ring-amber-500/40 focus:border-amber-500/50",
+                attachedSkill && !isArchitectFollowUp && "border-violet-500/30 focus:ring-violet-500/40"
               )}
             />
           </div>

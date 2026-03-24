@@ -130,7 +130,7 @@ export function streamTask(
   task: string,
   options: Record<string, unknown> | undefined,
   onEvent: (event: SSEEvent) => void,
-  extra?: { conversationId?: string; files?: { name: string; type: string; size: number; content?: string }[] },
+  extra?: { conversationId?: string; files?: { name: string; type: string; size: number; content?: string }[]; skillId?: string },
 ): AbortController {
   const controller = new AbortController();
 
@@ -145,7 +145,7 @@ export function streamTask(
       const res = await fetch(`${API_BASE}/tasks/stream`, {
         method: 'POST',
         headers: authHeaders,
-        body: JSON.stringify({ task: prefixedTask, options, conversationId: extra?.conversationId, files: extra?.files }),
+        body: JSON.stringify({ task: prefixedTask, options, conversationId: extra?.conversationId, files: extra?.files, skillId: extra?.skillId }),
         signal: controller.signal,
       });
 

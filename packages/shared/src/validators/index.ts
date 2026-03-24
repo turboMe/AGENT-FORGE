@@ -33,6 +33,8 @@ export const CreateTaskSchema = z.object({
       }),
     )
     .optional(),
+  // Direct skill reference from "Use" button
+  skillId: z.string().optional(),
 });
 
 export const CreateSkillSchema = z.object({

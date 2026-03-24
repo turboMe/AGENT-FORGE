@@ -103,7 +103,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-secondary/30 px-3 py-1.5">
             <DollarSign className="h-3.5 w-3.5 text-blue-400" />
             <span className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">${totals.totalCost.toFixed(2)}</span> total cost
+              <span className="font-semibold text-foreground">${totals.totalCost.toFixed(4)}</span> total cost
             </span>
           </div>
         </div>

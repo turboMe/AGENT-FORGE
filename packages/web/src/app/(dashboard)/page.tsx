@@ -234,17 +234,21 @@ export default function ChatPage() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchParams = useSearchParams();
   const nextRouter = useNextRouter();
-  const [skillPrompt, setSkillPrompt] = useState<string | undefined>(undefined);
+  const [attachedSkill, setAttachedSkill] = useState<{ id: string; name: string } | null>(null);
 
   // Track the current generationType for the ongoing stream
   const generationTypeRef = useRef<'skill' | 'agent' | null>(null);
   const originalTaskRef = useRef<string>("");
+  // Track skill ID from "Use" button on Skills page
+  const useSkillIdRef = useRef<string | null>(null);
 
   // Read skill query params from "Use" button on Skills page
   useEffect(() => {
+    const skillId = searchParams.get("skill");
     const skillName = searchParams.get("skillName");
-    if (skillName) {
-      setSkillPrompt(`Use skill: ${skillName}`);
+    if (skillName && skillId) {
+      setAttachedSkill({ id: skillId, name: skillName });
+      useSkillIdRef.current = skillId;
       // Clear query params from URL to avoid re-triggering
       nextRouter.replace("/", { scroll: false });
     }
@@ -456,9 +460,16 @@ export default function ChatPage() {
         originalTaskRef.current = state.architect.originalTask;
       }
 
+      // Pass skillId if coming from "Use" button on Skills page
+      const skillId = useSkillIdRef.current ?? attachedSkill?.id ?? null;
+      if (skillId) {
+        useSkillIdRef.current = null; // Clear after use
+        setAttachedSkill(null); // Clear badge
+      }
+
       setFiles([]);
 
-      const controller = streamTask(content, options, createSSEHandler(conversationId!, content), { conversationId: conversationId!, files: apiFiles });
+      const controller = streamTask(content, options, createSSEHandler(conversationId!, content), { conversationId: conversationId!, files: apiFiles, skillId: skillId ?? undefined });
 
       abortRef.current = controller;
     },
@@ -605,7 +616,11 @@ export default function ChatPage() {
           onFileUploadToggle={() => setShowFileUpload(!showFileUpload)}
           disabled={state.isStreaming}
           hasFiles={files.length > 0}
-          initialValue={skillPrompt}
+          attachedSkill={attachedSkill}
+          onDetachSkill={() => {
+            setAttachedSkill(null);
+            useSkillIdRef.current = null;
+          }}
           isArchitectFollowUp={state.architect.isAwaitingInput}
         />
       </div>

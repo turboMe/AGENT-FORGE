@@ -16,6 +16,9 @@ const ACCEPTED_TYPES = [
   "text/markdown",
   "text/csv",
   "application/json",
+  "application/pdf",
+  "text/yaml",
+  "application/x-yaml",
   "image/png",
   "image/jpeg",
   "image/webp",
@@ -23,6 +26,16 @@ const ACCEPTED_TYPES = [
 ];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+/** MIME types whose content should be read as text */
+const TEXT_READABLE = new Set([
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
+  "text/yaml",
+  "application/x-yaml",
+]);
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -32,7 +45,7 @@ function formatFileSize(bytes: number): string {
 
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return <ImageIcon className="h-4 w-4" />;
-  if (type.includes("json") || type.includes("csv")) return <FileCode className="h-4 w-4" />;
+  if (type.includes("json") || type.includes("csv") || type.includes("yaml")) return <FileCode className="h-4 w-4" />;
   return <FileText className="h-4 w-4" />;
 }
 
@@ -55,16 +68,26 @@ export function FileUpload({ files, onFilesChange, onClose }: FileUploadProps) {
             type: file.type,
           };
 
-          // Read text-based files content
-          if (file.type.startsWith('text/') || file.type === 'application/json') {
+          if (TEXT_READABLE.has(file.type)) {
+            // Read text-based files as text
             const reader = new FileReader();
             reader.onload = () => {
               meta.content = reader.result as string;
               resolve(meta);
             };
-            reader.onerror = () => resolve(meta); // fallback without content
+            reader.onerror = () => resolve(meta);
             reader.readAsText(file);
+          } else if (file.type.startsWith('image/')) {
+            // Read images as base64 data URI for vision support
+            const reader = new FileReader();
+            reader.onload = () => {
+              meta.content = reader.result as string; // data:image/png;base64,...
+              resolve(meta);
+            };
+            reader.onerror = () => resolve(meta);
+            reader.readAsDataURL(file);
           } else {
+            // PDF and other binary files — metadata only (no content extraction)
             resolve(meta);
           }
         });
@@ -148,7 +171,7 @@ export function FileUpload({ files, onFilesChange, onClose }: FileUploadProps) {
               {isDragOver ? "Drop files here" : "Drag & drop or click to browse"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              txt, md, json, csv, images — max 10MB
+              txt, md, json, csv, yaml, pdf, images — max 10MB
             </p>
           </div>
         </div>

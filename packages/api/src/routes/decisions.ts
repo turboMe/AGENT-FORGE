@@ -84,8 +84,8 @@ export async function decisionRoutes(app: FastifyInstance) {
           actionTaken: d.actionTaken,
           skillUsed: d.matchedSkillId || d.newSkillCreated || null,
           executionSuccess: d.executionSuccess,
-          latencyMs: 350, // Temporary mock: real latency would come from Task execution metrics
-          costUsd: 0.05,  // Temporary mock: real cost would come from Task execution metrics
+          latencyMs: (d as any).latencyMs ?? 0,
+          costUsd: (d as any).costUsd ?? 0,
           createdAt: d.createdAt.toISOString()
         })),
         pagination: {
@@ -123,8 +123,8 @@ export async function decisionRoutes(app: FastifyInstance) {
         actionTaken: decision.actionTaken,
         skillUsed: decision.matchedSkillId || decision.newSkillCreated || null,
         executionSuccess: decision.executionSuccess,
-        latencyMs: 350,
-        costUsd: 0.05,
+        latencyMs: (decision as any).latencyMs ?? 0,
+        costUsd: (decision as any).costUsd ?? 0,
         createdAt: decision.createdAt.toISOString()
       });
     },

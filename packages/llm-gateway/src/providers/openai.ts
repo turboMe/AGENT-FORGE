@@ -5,6 +5,7 @@ import type {
   ProviderConfig,
   ProviderGenerateParams,
   ProviderGenerateResult,
+  ContentBlock,
 } from '../types.js';
 import { BaseLLMProvider } from './base.js';
 
@@ -22,6 +23,21 @@ export class OpenAIProvider extends BaseLLMProvider {
     });
   }
 
+  /** Convert our ContentBlock[] to OpenAI's content format */
+  private toOpenAIContent(content: string | ContentBlock[]): string | OpenAI.ChatCompletionContentPart[] {
+    if (typeof content === 'string') return content;
+    return content.map((block): OpenAI.ChatCompletionContentPart => {
+      if (block.type === 'text') {
+        return { type: 'text', text: block.text };
+      }
+      // image block → OpenAI vision format (data URI)
+      return {
+        type: 'image_url',
+        image_url: { url: `data:${block.mediaType};base64,${block.base64Data}` },
+      };
+    });
+  }
+
   async generate(params: ProviderGenerateParams): Promise<ProviderGenerateResult> {
     try {
       // Build messages: use explicit messages[] if provided, otherwise build from prompt
@@ -29,8 +45,8 @@ export class OpenAIProvider extends BaseLLMProvider {
       if (params.messages?.length) {
         messages = params.messages.map((m) => ({
           role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content,
-        }));
+          content: this.toOpenAIContent(m.content),
+        } as OpenAI.ChatCompletionMessageParam));
       } else {
         messages = [];
         if (params.systemPrompt) {

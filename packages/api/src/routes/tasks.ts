@@ -26,6 +26,7 @@ import {
 interface CreateTaskBody {
   task: string;
   conversationId?: string;
+  skillId?: string;
   files?: FileAttachment[];
   options?: {
     model?: string;
@@ -117,7 +118,7 @@ export async function taskRoutes(app: FastifyInstance) {
       preHandler: [authenticate, zodValidate(CreateTaskSchema)],
     },
     async (request, reply) => {
-      const { task, options, conversationId, files } = request.body;
+      const { task, options, conversationId, files, skillId } = request.body;
       const { uid, tenantId } = request.user;
 
       request.log.info(
@@ -247,34 +248,74 @@ export async function taskRoutes(app: FastifyInstance) {
 
         const skillLibrary = new SkillLibraryService({ apiKey: voyageKey });
 
-        // Use DI constructor to pass components that use the API's mongoose connection.
-        const orchestrator = new Orchestrator({
-          classifier: new TaskClassifier(gateway),
-          matcher: new SkillMatcher(skillLibrary),
-          router: new DecisionRouter(),
-          logger: new LocalDecisionLogger(),
-        });
-
-        // ── Executing Pipeline via Orchestrator — real-time SSE step events ──
-        const execResult = await orchestrator.executeTask({
-          tenantId,
-          userId: uid,
-          task: cleanTask,
-          options: { forceNewSkill: options?.forceNewSkill },
-          onStep: (step, status, label) => {
-            reply.raw.write(sseEvent('step', { step, status, label }));
-          },
-        });
-
-        reply.raw.write(sseEvent('step', { step: 'execute', status: 'running', label: 'Executing with skill' }));
-
         // ── Gap 3 fix: Use ContextBuilder for full skill template ──
         const contextBuilder = new ContextBuilder();
         let matchedSkill: ISkill | null = null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let execResult: any;
 
-        if (execResult.routing.matchedSkillId) {
-          matchedSkill = await skillLibrary.findById(execResult.routing.matchedSkillId);
+        // ═══════════════════════════════════════════════════════
+        // DIRECT SKILL — bypass classifier/matcher when skillId provided
+        // This happens when user clicks "Use" on Skills page
+        // ═══════════════════════════════════════════════════════
+        if (skillId) {
+          reply.raw.write(sseEvent('step', { step: 'classify', status: 'done', label: 'Using selected skill directly' }));
+          reply.raw.write(sseEvent('step', { step: 'search', status: 'done', label: 'Skill selected by user' }));
+          reply.raw.write(sseEvent('step', { step: 'route', status: 'done', label: 'Direct skill routing' }));
+
+          matchedSkill = await skillLibrary.findById(skillId);
+
+          if (!matchedSkill) {
+            request.log.warn({ skillId }, 'Direct skill reference not found, falling back to pipeline');
+          } else {
+            request.log.info({ skillId, skillName: matchedSkill.name }, 'Using directly referenced skill');
+          }
+
+          execResult = {
+            taskId: `direct_${Date.now()}`,
+            classification: {
+              taskType: 'text' as const,
+              domain: matchedSkill?.domain ?? ['general'],
+              complexity: 'medium' as const,
+              keywords: [],
+              confidence: 1.0,
+            },
+            routing: {
+              action: matchedSkill ? 'use_existing' as const : 'create_new' as const,
+              searchResult: matchedSkill ? 'exact_match' as const : 'no_match' as const,
+              matchedSkillId: matchedSkill?._id,
+              matchedSkillName: matchedSkill?.name,
+              matchScore: matchedSkill ? 1.0 : 0,
+              reasoning: matchedSkill
+                ? `Direct skill reference: "${matchedSkill.name}" (selected by user)`
+                : 'Referenced skill not found',
+            },
+          };
+        } else {
+          // ── Normal pipeline: classify → match → route ──
+          const orchestrator = new Orchestrator({
+            classifier: new TaskClassifier(gateway),
+            matcher: new SkillMatcher(skillLibrary),
+            router: new DecisionRouter(),
+            logger: new LocalDecisionLogger(),
+          });
+
+          execResult = await orchestrator.executeTask({
+            tenantId,
+            userId: uid,
+            task: cleanTask,
+            options: { forceNewSkill: options?.forceNewSkill },
+            onStep: (step, status, label) => {
+              reply.raw.write(sseEvent('step', { step, status, label }));
+            },
+          });
+
+          if (execResult.routing.matchedSkillId) {
+            matchedSkill = await skillLibrary.findById(execResult.routing.matchedSkillId);
+          }
         }
+
+        reply.raw.write(sseEvent('step', { step: 'execute', status: 'running', label: 'Executing with skill' }));
 
         // ── Gap 1 fix: Integrate MemoryManager (optional, behind env flag) ──
         let memoryContext = {
@@ -404,26 +445,55 @@ export async function taskRoutes(app: FastifyInstance) {
 
         // Build full prompt: ContextBuilder output + optional file attachments
         let fullPrompt = builtContext.prompt;
+        const imageBlocks: Array<{ mediaType: string; base64Data: string }> = [];
+
         if (files && files.length > 0) {
-          const fileContext = files
-            .filter(f => f.content)
-            .map(f => `--- File: ${f.name} ---\n${f.content}`)
-            .join('\n\n');
-          if (fileContext) {
+          // Separate text files and image files
+          const textFiles = files.filter(f => f.content && !f.content.startsWith('data:'));
+          const imageFiles = files.filter(f => f.content && f.content.startsWith('data:image/'));
+
+          // Inject text file contents into the prompt
+          if (textFiles.length > 0) {
+            const fileContext = textFiles
+              .map(f => `--- File: ${f.name} ---\n${f.content}`)
+              .join('\n\n');
             fullPrompt = `${fullPrompt}\n\n<attached_files>\n${fileContext}\n</attached_files>`;
+          }
+
+          // Extract base64 data from image data URIs
+          for (const img of imageFiles) {
+            // data:image/png;base64,iVBOR... → { mediaType: 'image/png', base64Data: 'iVBOR...' }
+            const match = img.content!.match(/^data:(image\/\w+);base64,(.+)$/);
+            if (match) {
+              imageBlocks.push({ mediaType: match[1]!, base64Data: match[2]! });
+            }
           }
         }
 
-        // Call the LLMGateway (with timeout)
+        // Call the LLMGateway (with timeout) — use multimodal messages if images attached
         let llmResult;
         try {
+          const generateParams: Record<string, unknown> = {
+            systemPrompt,
+            model: (options?.model as any) || 'auto',
+            complexity: execResult.classification.complexity,
+          };
+
+          if (imageBlocks.length > 0) {
+            // Multimodal: send as messages with content blocks
+            const contentBlocks: Array<{ type: string; text?: string; mediaType?: string; base64Data?: string }> = [];
+            for (const img of imageBlocks) {
+              contentBlocks.push({ type: 'image', mediaType: img.mediaType, base64Data: img.base64Data });
+            }
+            contentBlocks.push({ type: 'text', text: fullPrompt });
+            generateParams.messages = [{ role: 'user', content: contentBlocks }];
+          } else {
+            // Text-only: use simple prompt
+            generateParams.prompt = fullPrompt;
+          }
+
           llmResult = await withTimeout(
-            gateway.generate({
-              prompt: fullPrompt,
-              systemPrompt,
-              model: (options?.model as any) || 'auto',
-              complexity: execResult.classification.complexity,
-            }),
+            gateway.generate(generateParams as any),
             STEP_TIMEOUT_MS,
             'LLM generation',
           );
@@ -437,7 +507,11 @@ export async function taskRoutes(app: FastifyInstance) {
         reply.raw.write(sseEvent('step', { step: 'save', status: 'running', label: 'Saving results' }));
         try {
           const decisionLogger = new LocalDecisionLogger();
-          await decisionLogger.markSuccess(execResult.taskId);
+          await decisionLogger.markSuccess(execResult.taskId, {
+            costUsd: llmResult.costEstimate,
+            tokens: llmResult.tokensInput + llmResult.tokensOutput,
+            latencyMs: llmResult.latencyMs,
+          });
         } catch { /* non-critical */ }
 
         // ── Gap 7 fix: Update skill usage stats ──

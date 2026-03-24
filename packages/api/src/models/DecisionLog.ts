@@ -4,6 +4,9 @@ import type { IDecision } from '@agentforge/shared';
 // We map IDecision exactly, excluding the MongoDB _id string type
 export interface IDecisionLogDoc extends Omit<IDecision, '_id'>, Document {
   tenantId: string;
+  costUsd: number;
+  tokens: number;
+  latencyMs: number;
 }
 
 const decisionLogSchema = new mongoose.Schema<IDecisionLogDoc>(
@@ -20,15 +23,19 @@ const decisionLogSchema = new mongoose.Schema<IDecisionLogDoc>(
     matchScore: { type: Number, required: true },
     actionTaken: {
       type: String,
-      enum: ['create_new', 'use_existing', 'adapt_existing', 'reject'],
+      enum: ['create_new', 'use_existing', 'adapt_existing'],
       required: true,
     },
     newSkillCreated: { type: String, default: null },
     executionSuccess: { type: Boolean, required: true },
+    costUsd: { type: Number, default: 0 },
+    tokens: { type: Number, default: 0 },
+    latencyMs: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
   },
   {
     timestamps: false,
+    collection: 'decisions',
   },
 );
 
