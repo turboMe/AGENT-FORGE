@@ -138,7 +138,7 @@ export default function SkillsPage() {
       // Optimistic update
       setSkills((prev) =>
         prev.map((s) =>
-          s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s
+          s.id === id ? ({ ...s, ...data, updatedAt: new Date().toISOString() } as Skill) : s
         )
       );
       setEditingId(null);

@@ -143,7 +143,7 @@ export class SkillLibraryService implements ISkillLibrary {
       ];
     }
 
-    const docs = await SkillModel.find(filter)
+    const docs = await (SkillModel as any).find(filter)
       .sort({ 'stats.useCount': -1 })
       .limit(limit)
       .lean();
@@ -155,7 +155,7 @@ export class SkillLibraryService implements ISkillLibrary {
         const matchText = `${skill.name} ${skill.description} ${skill.tags.join(' ')}`.toLowerCase();
         const queryLower = query.toLowerCase();
         const words = queryLower.split(/\s+/).filter(Boolean);
-        const matchedWords = words.filter(w => matchText.includes(w));
+        const matchedWords = words.filter((w: string) => matchText.includes(w));
         const score = words.length > 0 ? matchedWords.length / words.length : 0;
 
         return {
@@ -172,7 +172,7 @@ export class SkillLibraryService implements ISkillLibrary {
   ): Promise<ISkill> {
     const SkillModel = getSkillModel();
     const slug = skill.slug || skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const doc = await SkillModel.create({
+    const doc = await (SkillModel as any).create({
       ...skill,
       slug,
       version: 1,
@@ -199,13 +199,13 @@ export class SkillLibraryService implements ISkillLibrary {
     }
 
     if (Object.keys(update).length > 0) {
-      await SkillModel.updateOne({ _id: skillId } as any, update);
+      await (SkillModel as any).updateOne({ _id: skillId }, update);
     }
   }
 
   async findById(skillId: string): Promise<ISkill | null> {
     const SkillModel = getSkillModel();
-    const doc = await SkillModel.findOne({ _id: skillId, deletedAt: null } as any).lean();
+    const doc = await (SkillModel as any).findOne({ _id: skillId, deletedAt: null }).lean();
     return doc ? docToSkill(doc) : null;
   }
 
@@ -226,8 +226,8 @@ export class SkillLibraryService implements ISkillLibrary {
     };
 
     const [docs, total] = await Promise.all([
-      SkillModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      SkillModel.countDocuments(query),
+      (SkillModel as any).find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      (SkillModel as any).countDocuments(query),
     ]);
 
     return {

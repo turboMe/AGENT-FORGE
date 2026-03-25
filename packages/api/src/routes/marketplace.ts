@@ -170,7 +170,7 @@ export async function marketplaceRoutes(app: FastifyInstance) {
         { parentSkillId: 1 },
       ).lean();
       const installedParentIds = new Set(
-        installedSkills.map((s: { parentSkillId?: string }) => s.parentSkillId).filter(Boolean) as string[],
+        (installedSkills as any[]).map((s: any) => s.parentSkillId).filter(Boolean) as string[],
       );
 
       const skip = (pageNum - 1) * limitNum;
