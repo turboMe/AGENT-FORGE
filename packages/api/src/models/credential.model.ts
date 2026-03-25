@@ -1,4 +1,5 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import type { Document } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import type { ICredential } from '@agentforge/shared';
 
 export interface ICredentialDocument extends Omit<ICredential, '_id'>, Document {

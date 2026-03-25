@@ -1,4 +1,5 @@
-import mongoose, { Schema, Document, type Model } from 'mongoose';
+import type { Document} from 'mongoose';
+import mongoose, { Schema, type Model } from 'mongoose';
 import type { IWorkflowRun } from '@agentforge/shared';
 
 export interface IWorkflowRunDocument extends Omit<IWorkflowRun, '_id'>, Document {

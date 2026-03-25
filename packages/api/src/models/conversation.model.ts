@@ -1,4 +1,5 @@
-import mongoose, { Schema, Document, type Model } from 'mongoose';
+import type { Document} from 'mongoose';
+import mongoose, { Schema, type Model } from 'mongoose';
 import type { IConversation } from '@agentforge/shared';
 
 export interface IConversationDocument extends Omit<IConversation, '_id'>, Document {
