@@ -18,7 +18,7 @@ export abstract class BaseLLMProvider implements ILLMProvider {
   constructor(config: ProviderConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl;
-    this.timeoutMs = config.timeoutMs ?? 30_000;
+    this.timeoutMs = config.timeoutMs ?? 240_000;
     this.defaultMaxTokens = config.defaultMaxTokens ?? 4096;
     this.defaultTemperature = config.defaultTemperature ?? 0.7;
   }

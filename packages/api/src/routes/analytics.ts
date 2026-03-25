@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
+import { DecisionLog } from '../models/DecisionLog.js';
 
 export async function analyticsRoutes(app: FastifyInstance) {
   // ── GET /analytics/overview ───────────────────────
@@ -8,66 +9,151 @@ export async function analyticsRoutes(app: FastifyInstance) {
     {
       preHandler: [authenticate],
     },
-    async (_request, reply) => {
-      // Generate mock time-series data for the last 30 days
-      const now = new Date();
-      const skillsCreatedOverTime = Array.from({ length: 30 }, (_, i) => {
-        const d = new Date(now);
-        d.setDate(d.getDate() - (29 - i));
-        return {
-          date: d.toISOString().slice(0, 10),
-          count: Math.floor(Math.random() * 5) + 1,
-        };
-      });
+    async (request, reply) => {
+      const tenantId = request.user.tenantId;
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const retrievalHitRate = Array.from({ length: 30 }, (_, i) => {
-        const d = new Date(now);
-        d.setDate(d.getDate() - (29 - i));
-        return {
-          date: d.toISOString().slice(0, 10),
-          hitRate: Math.floor(Math.random() * 30) + 60,
-          totalQueries: Math.floor(Math.random() * 50) + 20,
-        };
-      });
+      // We need to run parallel aggregations
+      const [
+        totalDecisionsCount,
+        totalCostAgg,
+        successAgg,
+        skillsCreatedOverTime,
+        retrievalHitRateAgg,
+        topSkills,
+        costOverTime
+      ] = await Promise.all([
+        // 1. Total Decisions
+        DecisionLog.countDocuments({ tenantId }),
 
-      const topSkills = [
-        { name: 'Prompt Architect', useCount: 256, satisfaction: 4.9 },
-        { name: 'Code Review Assistant', useCount: 198, satisfaction: 4.7 },
-        { name: 'Cold Outreach Writer', useCount: 142, satisfaction: 4.6 },
-        { name: 'API Doc Generator', useCount: 112, satisfaction: 4.5 },
-        { name: 'Food Cost Analyst', useCount: 87, satisfaction: 4.8 },
-        { name: 'SEO Optimizer', useCount: 76, satisfaction: 4.3 },
-        { name: 'Business Coach', useCount: 63, satisfaction: 4.4 },
-        { name: 'Security Scanner', useCount: 45, satisfaction: 4.1 },
-        { name: 'Pipeline Designer', useCount: 34, satisfaction: 4.2 },
-        { name: 'Test Generator', useCount: 28, satisfaction: 4.0 },
-      ];
+        // 2. Total Cost
+        DecisionLog.aggregate([
+          { $match: { tenantId } },
+          { $group: { _id: null, totalCost: { $sum: "$costUsd" }, totalTokens: { $sum: "$tokens" } } }
+        ]),
 
-      const costOverTime = Array.from({ length: 30 }, (_, i) => {
-        const d = new Date(now);
-        d.setDate(d.getDate() - (29 - i));
-        return {
-          date: d.toISOString().slice(0, 10),
-          cost: parseFloat((Math.random() * 2.5 + 0.3).toFixed(2)),
-          tokens: Math.floor(Math.random() * 50000) + 5000,
-        };
-      });
+        // 3. Overall Success Rate
+        DecisionLog.aggregate([
+          { $match: { tenantId } },
+          { $group: {
+              _id: null,
+              total: { $sum: 1 },
+              success: { $sum: { $cond: ["$executionSuccess", 1, 0] } }
+            }
+          }
+        ]),
 
-      const totalCost = costOverTime.reduce((sum, d) => sum + d.cost, 0);
-      const avgHit =
-        retrievalHitRate.reduce((sum, d) => sum + d.hitRate, 0) / retrievalHitRate.length;
+        // 4. Skills Created Over Time (last 30 days)
+        DecisionLog.aggregate([
+          { $match: { tenantId, createdAt: { $gte: thirtyDaysAgo }, actionTaken: 'create_new' } },
+          { $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { "_id": 1 } }
+        ]),
+
+        // 5. Retrieval Hit Rate (last 30 days)
+        DecisionLog.aggregate([
+          { $match: { tenantId, createdAt: { $gte: thirtyDaysAgo } } },
+          { $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+              totalQueries: { $sum: 1 },
+              hits: { $sum: { $cond: [{ $ne: ["$actionTaken", "reject"] }, 1, 0] } }
+            }
+          },
+          { $sort: { "_id": 1 } }
+        ]),
+
+        // 6. Top Skills by Usage
+        DecisionLog.aggregate([
+          { $match: { 
+              tenantId, 
+              $or: [{ matchedSkillId: { $ne: null } }, { newSkillCreated: { $ne: null } }] 
+            } 
+          },
+          { $project: { skillId: { $ifNull: ["$matchedSkillId", "$newSkillCreated"] }, executionSuccess: 1 } },
+          { $group: {
+              _id: "$skillId",
+              useCount: { $sum: 1 },
+              successCount: { $sum: { $cond: ["$executionSuccess", 1, 0] } }
+            }
+          },
+          { $sort: { useCount: -1 } },
+          { $limit: 10 }
+        ]),
+
+        // 7. Cost Over Time (last 30 days)
+        DecisionLog.aggregate([
+          { $match: { tenantId, createdAt: { $gte: thirtyDaysAgo } } },
+          { $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+              cost: { $sum: "$costUsd" },
+              tokens: { $sum: "$tokens" }
+            }
+          },
+          { $sort: { "_id": 1 } }
+        ])
+      ]);
+
+      // Fill in blanks for dates (last 30 days) to ensure charts look continuous
+      const generateDateSeries = () => {
+        const series = [];
+        const now = new Date();
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          series.push(d.toISOString().slice(0, 10));
+        }
+        return series;
+      };
+
+      const dateSeries = generateDateSeries();
+
+      const formatSeries = (aggData: any[], valueMapper: (item: any) => any, defaultValues: any) => {
+        const dataMap = new Map(aggData.map(item => [item._id, item]));
+        return dateSeries.map(date => {
+          const item = dataMap.get(date);
+          return item ? { date, ...valueMapper(item) } : { date, ...defaultValues };
+        });
+      };
+
+      const formattedSkillsCreated = formatSeries
+        (skillsCreatedOverTime, item => ({ count: item.count }), { count: 0 });
+
+      const formattedRetrievalHitRate = formatSeries
+        (retrievalHitRateAgg, item => ({
+          hitRate: item.totalQueries ? Math.round((item.hits / item.totalQueries) * 100) : 0,
+          totalQueries: item.totalQueries
+        }), { hitRate: 0, totalQueries: 0 });
+
+      const formattedCostOverTime = formatSeries
+        (costOverTime, item => ({
+          cost: parseFloat(item.cost.toFixed(4)),
+          tokens: item.tokens
+        }), { cost: 0, tokens: 0 });
+
+      const totals = {
+        totalDecisions: totalDecisionsCount,
+        totalSkills: topSkills.length, // Just using unique skills from usage as proxy
+        avgHitRate: successAgg[0]?.total ? parseFloat(((successAgg[0].success / successAgg[0].total) * 100).toFixed(1)) : 0,
+        totalCost: totalCostAgg[0]?.totalCost ? parseFloat(totalCostAgg[0].totalCost.toFixed(4)) : 0,
+      };
+
+      const formattedTopSkills = topSkills.map(t => ({
+        name: t._id || 'Unknown Skill', // Will be slug/id for now
+        useCount: t.useCount,
+        satisfaction: parseFloat(((t.successCount / t.useCount) * 5).toFixed(1)) // Pseudo satisfaction scaled to 5
+      }));
 
       return reply.success({
-        skillsCreatedOverTime,
-        retrievalHitRate,
-        topSkills,
-        costOverTime,
-        totals: {
-          totalDecisions: 1247,
-          totalSkills: 42,
-          avgHitRate: parseFloat(avgHit.toFixed(1)),
-          totalCost: parseFloat(totalCost.toFixed(2)),
-        },
+        skillsCreatedOverTime: formattedSkillsCreated,
+        retrievalHitRate: formattedRetrievalHitRate,
+        topSkills: formattedTopSkills,
+        costOverTime: formattedCostOverTime,
+        totals,
       });
     },
   );

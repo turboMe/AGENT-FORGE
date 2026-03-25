@@ -1,344 +1,25 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Workflow as WorkflowIcon, Sparkles } from "lucide-react";
 import { WorkflowCard } from "@/components/workflows/workflow-card";
 import { ExecutionTimeline } from "@/components/workflows/execution-timeline";
 import { EditParametersModal } from "@/components/workflows/edit-parameters-modal";
 import { ViewLogsModal } from "@/components/workflows/view-logs-modal";
+import {
+  fetchWorkflows,
+  fetchWorkflowRuns,
+  pauseWorkflow,
+  resumeWorkflow,
+  deleteWorkflow,
+  updateWorkflowParams,
+} from "@/lib/api";
 import type {
   Workflow,
   WorkflowRun,
   WorkflowParameter,
   WorkflowStatus,
 } from "@/types/workflow";
-
-// ── Mock data ──────────────────────────────────────
-
-const MOCK_RUNS: WorkflowRun[] = [
-  {
-    id: "run_001",
-    workflowId: "wf_001",
-    status: "success",
-    startedAt: "2026-03-22T10:00:00Z",
-    completedAt: "2026-03-22T10:00:12Z",
-    durationMs: 12340,
-    output:
-      "Processed 45 outreach leads.\n\nGenerated 45 personalized cold emails.\nAvg confidence: 0.92\nDelivered to queue: 45/45",
-    error: null,
-    triggeredBy: "schedule",
-  },
-  {
-    id: "run_002",
-    workflowId: "wf_001",
-    status: "success",
-    startedAt: "2026-03-22T06:00:00Z",
-    completedAt: "2026-03-22T06:00:08Z",
-    durationMs: 8200,
-    output: "Processed 32 outreach leads.\nGenerated 32 personalized cold emails.",
-    error: null,
-    triggeredBy: "schedule",
-  },
-  {
-    id: "run_003",
-    workflowId: "wf_001",
-    status: "failed",
-    startedAt: "2026-03-21T22:00:00Z",
-    completedAt: "2026-03-21T22:00:03Z",
-    durationMs: 3100,
-    output: null,
-    error:
-      "Error: Rate limit exceeded for Anthropic API.\n  at LLMGateway.call (llm-gateway/src/index.ts:142)\n  at Orchestrator.execute (orchestrator/src/index.ts:87)",
-    triggeredBy: "schedule",
-  },
-  {
-    id: "run_004",
-    workflowId: "wf_001",
-    status: "success",
-    startedAt: "2026-03-21T18:00:00Z",
-    completedAt: "2026-03-21T18:00:15Z",
-    durationMs: 15420,
-    output: "Processed 58 outreach leads.\nGenerated 58 personalized cold emails.",
-    error: null,
-    triggeredBy: "schedule",
-  },
-  {
-    id: "run_005",
-    workflowId: "wf_001",
-    status: "success",
-    startedAt: "2026-03-21T14:00:00Z",
-    completedAt: "2026-03-21T14:00:10Z",
-    durationMs: 10100,
-    output: "Processed 41 outreach leads.",
-    error: null,
-    triggeredBy: "manual",
-  },
-  {
-    id: "run_006",
-    workflowId: "wf_002",
-    status: "success",
-    startedAt: "2026-03-22T09:00:00Z",
-    completedAt: "2026-03-22T09:00:25Z",
-    durationMs: 25300,
-    output:
-      "Menu analysis complete.\n\n3 high-cost items identified:\n- Wagyu Burger (FC: 42%)\n- Lobster Bisque (FC: 38%)\n- Truffle Risotto (FC: 35%)\n\nRecommendations generated.",
-    error: null,
-    triggeredBy: "schedule",
-  },
-  {
-    id: "run_007",
-    workflowId: "wf_002",
-    status: "success",
-    startedAt: "2026-03-21T09:00:00Z",
-    completedAt: "2026-03-21T09:00:22Z",
-    durationMs: 22100,
-    output: "Menu analysis complete. 2 high-cost items identified.",
-    error: null,
-    triggeredBy: "schedule",
-  },
-  {
-    id: "run_008",
-    workflowId: "wf_003",
-    status: "success",
-    startedAt: "2026-03-22T12:30:00Z",
-    completedAt: "2026-03-22T12:30:45Z",
-    durationMs: 45200,
-    output:
-      "Code review complete.\n\nFiles reviewed: 12\nIssues found: 3 (1 critical, 2 minor)\n\nCritical: SQL injection in user input handler\nMinor: Unused imports, missing error boundary",
-    error: null,
-    triggeredBy: "manual",
-  },
-  {
-    id: "run_009",
-    workflowId: "wf_004",
-    status: "failed",
-    startedAt: "2026-03-22T08:00:00Z",
-    completedAt: "2026-03-22T08:00:02Z",
-    durationMs: 2100,
-    output: null,
-    error: "Error: Connection timeout to vulnerability database.\n  at SecurityScanner.connect (scanner/src/db.ts:34)",
-    triggeredBy: "schedule",
-  },
-  {
-    id: "run_010",
-    workflowId: "wf_005",
-    status: "success",
-    startedAt: "2026-03-22T11:00:00Z",
-    completedAt: "2026-03-22T11:01:30Z",
-    durationMs: 90200,
-    output:
-      "Pipeline design complete.\n\nSource: PostgreSQL (3 tables)\nTransform: 4 stages (clean → normalize → enrich → aggregate)\nSink: BigQuery\nEstimated throughput: ~10k rows/min",
-    error: null,
-    triggeredBy: "manual",
-  },
-];
-
-const MOCK_WORKFLOWS: Workflow[] = [
-  {
-    id: "wf_001",
-    name: "Daily Outreach Generator",
-    description:
-      "Generates personalized cold outreach emails for new leads every 4 hours using the Cold Outreach Writer skill.",
-    status: "active",
-    skillId: "sk_001",
-    skillName: "Cold Outreach Writer",
-    schedule: "0 */4 * * *",
-    parameters: [
-      {
-        key: "max_leads",
-        value: "50",
-        type: "number",
-        label: "Max Leads per Run",
-        description: "Maximum number of leads to process in a single execution.",
-      },
-      {
-        key: "tone",
-        value: "professional",
-        type: "select",
-        label: "Email Tone",
-        description: "The tone of generated emails.",
-        options: ["professional", "casual", "friendly", "urgent"],
-      },
-      {
-        key: "include_followup",
-        value: "true",
-        type: "boolean",
-        label: "Include Follow-up",
-        description: "Generate a follow-up email template for non-responders.",
-      },
-    ],
-    stats: {
-      runCount: 142,
-      successRate: 96,
-      avgDurationMs: 11200,
-      lastRunAt: "2026-03-22T10:00:00Z",
-    },
-    createdBy: "user_001",
-    createdAt: "2026-02-15T10:00:00Z",
-    updatedAt: "2026-03-22T10:00:00Z",
-  },
-  {
-    id: "wf_002",
-    name: "Menu Cost Watchdog",
-    description:
-      "Daily analysis of restaurant menu food costs. Alerts when any item exceeds 35% food cost ratio.",
-    status: "active",
-    skillId: "sk_002",
-    skillName: "Food Cost Analyst",
-    schedule: "0 9 * * *",
-    parameters: [
-      {
-        key: "threshold",
-        value: "35",
-        type: "number",
-        label: "Cost Threshold (%)",
-        description: "Alert when food cost ratio exceeds this percentage.",
-      },
-      {
-        key: "report_format",
-        value: "detailed",
-        type: "select",
-        label: "Report Format",
-        options: ["summary", "detailed", "executive"],
-      },
-    ],
-    stats: {
-      runCount: 87,
-      successRate: 100,
-      avgDurationMs: 23700,
-      lastRunAt: "2026-03-22T09:00:00Z",
-    },
-    createdBy: "user_001",
-    createdAt: "2026-02-20T09:00:00Z",
-    updatedAt: "2026-03-22T09:00:00Z",
-  },
-  {
-    id: "wf_003",
-    name: "PR Code Reviewer",
-    description:
-      "Automatically reviews pull requests on push events. Checks for security issues, performance, and best practices.",
-    status: "paused",
-    skillId: "sk_005",
-    skillName: "Code Review Assistant",
-    schedule: null,
-    parameters: [
-      {
-        key: "severity_filter",
-        value: "medium",
-        type: "select",
-        label: "Min Severity",
-        description: "Only report issues at or above this severity level.",
-        options: ["low", "medium", "high", "critical"],
-      },
-      {
-        key: "auto_approve",
-        value: "false",
-        type: "boolean",
-        label: "Auto-approve Clean PRs",
-        description: "Automatically approve PRs with no issues found.",
-      },
-    ],
-    stats: {
-      runCount: 198,
-      successRate: 99,
-      avgDurationMs: 45200,
-      lastRunAt: "2026-03-22T12:30:00Z",
-    },
-    createdBy: "user_001",
-    createdAt: "2026-02-10T14:00:00Z",
-    updatedAt: "2026-03-20T10:00:00Z",
-  },
-  {
-    id: "wf_004",
-    name: "Nightly Security Scan",
-    description:
-      "Scans the entire codebase for security vulnerabilities every night at 2 AM. Cross-references OWASP Top 10.",
-    status: "failed",
-    skillId: "sk_009",
-    skillName: "Security Scanner",
-    schedule: "0 2 * * *",
-    parameters: [
-      {
-        key: "scan_depth",
-        value: "full",
-        type: "select",
-        label: "Scan Depth",
-        options: ["quick", "standard", "full"],
-      },
-    ],
-    stats: {
-      runCount: 45,
-      successRate: 78,
-      avgDurationMs: 120300,
-      lastRunAt: "2026-03-22T08:00:00Z",
-    },
-    createdBy: "user_001",
-    createdAt: "2026-02-25T08:00:00Z",
-    updatedAt: "2026-03-22T08:00:00Z",
-  },
-  {
-    id: "wf_005",
-    name: "Data Pipeline Blueprint",
-    description:
-      "Generates ETL pipeline designs from natural language specs. Outputs architecture docs and config files.",
-    status: "completed",
-    skillId: "sk_006",
-    skillName: "Data Pipeline Designer",
-    schedule: null,
-    parameters: [
-      {
-        key: "output_format",
-        value: "markdown",
-        type: "select",
-        label: "Output Format",
-        options: ["markdown", "yaml", "json"],
-      },
-    ],
-    stats: {
-      runCount: 12,
-      successRate: 92,
-      avgDurationMs: 88400,
-      lastRunAt: "2026-03-22T11:00:00Z",
-    },
-    createdBy: "user_001",
-    createdAt: "2026-03-05T09:00:00Z",
-    updatedAt: "2026-03-22T11:00:00Z",
-  },
-  {
-    id: "wf_006",
-    name: "SEO Content Optimizer (Draft)",
-    description:
-      "Batch-optimize blog posts and landing pages for search ranking. Analyzes keyword density, meta tags, and internal links.",
-    status: "draft",
-    skillId: "sk_007",
-    skillName: "SEO Content Optimizer",
-    schedule: null,
-    parameters: [
-      {
-        key: "target_keywords",
-        value: "",
-        type: "string",
-        label: "Target Keywords",
-        description: "Comma-separated list of primary keywords to optimize for.",
-      },
-      {
-        key: "max_pages",
-        value: "10",
-        type: "number",
-        label: "Max Pages per Run",
-      },
-    ],
-    stats: {
-      runCount: 0,
-      successRate: 0,
-      avgDurationMs: 0,
-      lastRunAt: null,
-    },
-    createdBy: "user_001",
-    createdAt: "2026-03-20T16:00:00Z",
-    updatedAt: "2026-03-20T16:00:00Z",
-  },
-];
 
 // ── Skeleton ────────────────────────────────────────
 
@@ -449,70 +130,113 @@ const STATUS_TABS: { label: string; value: WorkflowStatus | "all" }[] = [
 // ── Page ────────────────────────────────────────────
 
 export default function WorkflowsPage() {
-  const [workflows, setWorkflows] = useState<Workflow[]>(MOCK_WORKFLOWS);
-  const [loading] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [allRuns, setAllRuns] = useState<WorkflowRun[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<WorkflowStatus | "all">("all");
 
   // Modal state
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
   const [logsWorkflow, setLogsWorkflow] = useState<Workflow | null>(null);
+  const [logsRuns, setLogsRuns] = useState<WorkflowRun[]>([]);
+  const [, setLogsLoading] = useState(false);
   const [deletingWorkflow, setDeletingWorkflow] = useState<Workflow | null>(null);
 
-  // Filter workflows
+  // ── Load workflows from API ─────────────────────
+  const loadWorkflows = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchWorkflows({
+        status: statusFilter === "all" ? undefined : statusFilter,
+        limit: 50,
+      });
+      setWorkflows(data.workflows);
+
+      // Load runs for all workflows for the timeline
+      const runPromises = data.workflows.map((w) =>
+        fetchWorkflowRuns(w.id, 5).catch(() => [])
+      );
+      const runsPerWorkflow = await Promise.all(runPromises);
+      const merged = runsPerWorkflow
+        .flat()
+        .sort(
+          (a, b) =>
+            new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+        );
+      setAllRuns(merged);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => {
+    loadWorkflows();
+  }, [loadWorkflows]);
+
+  // Filter workflows (client-side as backup if statusFilter was "all")
   const filtered =
     statusFilter === "all"
       ? workflows
       : workflows.filter((w) => w.status === statusFilter);
 
-  // Get runs for a specific workflow
-  const getWorkflowRuns = useCallback(
-    (workflowId: string) =>
-      MOCK_RUNS.filter((r) => r.workflowId === workflowId).sort(
-        (a, b) =>
-          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-      ),
-    []
-  );
-
-  // All runs for the global timeline
-  const allRuns = MOCK_RUNS.sort(
-    (a, b) =>
-      new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
-  );
-
   // ── Handlers ────────────────────────────────────
 
-  const handlePause = useCallback((workflow: Workflow) => {
-    setWorkflows((prev) =>
-      prev.map((w) =>
-        w.id === workflow.id
-          ? { ...w, status: "paused" as WorkflowStatus, updatedAt: new Date().toISOString() }
-          : w
-      )
-    );
-    // pauseWorkflow(workflow.id).catch(console.error);
-  }, []);
+  const handlePause = useCallback(
+    async (workflow: Workflow) => {
+      // Optimistic update
+      setWorkflows((prev) =>
+        prev.map((w) =>
+          w.id === workflow.id
+            ? { ...w, status: "paused" as WorkflowStatus, updatedAt: new Date().toISOString() }
+            : w
+        )
+      );
+      try {
+        await pauseWorkflow(workflow.id);
+      } catch {
+        // Revert on failure
+        loadWorkflows();
+      }
+    },
+    [loadWorkflows]
+  );
 
-  const handleResume = useCallback((workflow: Workflow) => {
-    setWorkflows((prev) =>
-      prev.map((w) =>
-        w.id === workflow.id
-          ? { ...w, status: "active" as WorkflowStatus, updatedAt: new Date().toISOString() }
-          : w
-      )
-    );
-    // resumeWorkflow(workflow.id).catch(console.error);
-  }, []);
+  const handleResume = useCallback(
+    async (workflow: Workflow) => {
+      setWorkflows((prev) =>
+        prev.map((w) =>
+          w.id === workflow.id
+            ? { ...w, status: "active" as WorkflowStatus, updatedAt: new Date().toISOString() }
+            : w
+        )
+      );
+      try {
+        await resumeWorkflow(workflow.id);
+      } catch {
+        loadWorkflows();
+      }
+    },
+    [loadWorkflows]
+  );
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!deletingWorkflow) return;
-    setWorkflows((prev) => prev.filter((w) => w.id !== deletingWorkflow.id));
+    const target = deletingWorkflow;
     setDeletingWorkflow(null);
-    // deleteWorkflow(deletingWorkflow.id).catch(console.error);
-  }, [deletingWorkflow]);
+    setWorkflows((prev) => prev.filter((w) => w.id !== target.id));
+    try {
+      await deleteWorkflow(target.id);
+    } catch {
+      loadWorkflows();
+    }
+  }, [deletingWorkflow, loadWorkflows]);
 
   const handleSaveParams = useCallback(
-    (workflowId: string, parameters: WorkflowParameter[]) => {
+    async (workflowId: string, parameters: WorkflowParameter[]) => {
       setWorkflows((prev) =>
         prev.map((w) =>
           w.id === workflowId
@@ -521,10 +245,27 @@ export default function WorkflowsPage() {
         )
       );
       setEditingWorkflow(null);
-      // updateWorkflowParams(workflowId, parameters).catch(console.error);
+      try {
+        await updateWorkflowParams(workflowId, parameters);
+      } catch {
+        loadWorkflows();
+      }
     },
-    []
+    [loadWorkflows]
   );
+
+  const handleViewLogs = useCallback(async (workflow: Workflow) => {
+    setLogsWorkflow(workflow);
+    setLogsLoading(true);
+    try {
+      const runs = await fetchWorkflowRuns(workflow.id, 50);
+      setLogsRuns(runs);
+    } catch {
+      setLogsRuns([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, []);
 
   // Status counts
   const counts = workflows.reduce(
@@ -587,8 +328,22 @@ export default function WorkflowsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Error banner */}
+        {error && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-400">
+            Failed to load workflows: {error}
+            <button
+              type="button"
+              onClick={loadWorkflows}
+              className="ml-2 underline hover:no-underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Execution Timeline — global overview */}
-        <ExecutionTimeline runs={allRuns} />
+        {allRuns.length > 0 && <ExecutionTimeline runs={allRuns} />}
 
         {/* Workflow Grid */}
         {loading ? (
@@ -609,7 +364,7 @@ export default function WorkflowsPage() {
                 onResume={handleResume}
                 onDelete={(w) => setDeletingWorkflow(w)}
                 onEditParams={(w) => setEditingWorkflow(w)}
-                onViewLogs={(w) => setLogsWorkflow(w)}
+                onViewLogs={handleViewLogs}
               />
             ))}
           </div>
@@ -629,8 +384,11 @@ export default function WorkflowsPage() {
       {logsWorkflow && (
         <ViewLogsModal
           workflow={logsWorkflow}
-          runs={getWorkflowRuns(logsWorkflow.id)}
-          onClose={() => setLogsWorkflow(null)}
+          runs={logsRuns}
+          onClose={() => {
+            setLogsWorkflow(null);
+            setLogsRuns([]);
+          }}
         />
       )}
 

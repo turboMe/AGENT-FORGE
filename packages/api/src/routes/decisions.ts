@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
+import { DecisionLog } from '../models/DecisionLog.js';
 
 interface DecisionQuerystring {
   page?: string;
@@ -7,6 +8,8 @@ interface DecisionQuerystring {
   from?: string;
   to?: string;
   action?: string;
+  search?: string;
+  success?: string;
 }
 
 interface DecisionParams {
@@ -27,31 +30,69 @@ export async function decisionRoutes(app: FastifyInstance) {
         from,
         to,
         action,
+        search,
+        success,
       } = request.query;
 
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
-      request.log.info(
-        {
-          tenantId: request.user.tenantId,
-          page: pageNum,
-          limit: limitNum,
-          from,
-          to,
-          action,
-        },
-        'Listing decisions',
-      );
+      const query: Record<string, any> = { tenantId: request.user.tenantId };
+      
+      if (action) {
+        query.actionTaken = action;
+      }
+      
+      if (success !== undefined) {
+        query.executionSuccess = success === 'true';
+      }
+      
+      if (from || to) {
+        query.createdAt = {};
+        if (from) query.createdAt.$gte = new Date(from);
+        if (to) {
+          const toDate = new Date(to);
+          toDate.setUTCHours(23, 59, 59, 999);
+          query.createdAt.$lte = toDate;
+        }
+      }
+      
+      if (search) {
+        query.$or = [
+          { taskSummary: { $regex: search, $options: 'i' } },
+          { matchedSkillId: { $regex: search, $options: 'i' } }
+        ];
+      }
 
-      // Stub: In production, calls DecisionLogger.find() with filters
+      request.log.info({ tenantId: request.user.tenantId, query }, 'Listing decisions');
+
+      const [total, decisions] = await Promise.all([
+        DecisionLog.countDocuments(query),
+        DecisionLog.find(query)
+          .sort({ createdAt: -1 })
+          .skip((pageNum - 1) * limitNum)
+          .limit(limitNum)
+          .lean()
+      ]);
+
       return reply.success({
-        decisions: [],
+        // Map _id to id and ensure field names match frontend Decision type
+        decisions: decisions.map(d => ({
+          id: d._id.toString(),
+          taskId: d.taskId,
+          taskSummary: d.taskSummary,
+          actionTaken: d.actionTaken,
+          skillUsed: d.matchedSkillId || d.newSkillCreated || null,
+          executionSuccess: d.executionSuccess,
+          latencyMs: (d as any).latencyMs ?? 0,
+          costUsd: (d as any).costUsd ?? 0,
+          createdAt: d.createdAt.toISOString()
+        })),
         pagination: {
           page: pageNum,
           limit: limitNum,
-          total: 0,
-          totalPages: 0,
+          total,
+          totalPages: Math.ceil(total / limitNum),
         },
       });
     },
@@ -66,14 +107,25 @@ export async function decisionRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { decisionId } = request.params;
 
-      // Stub: In production, calls DecisionLogger.findById()
+      const decision = await DecisionLog.findOne({
+        _id: decisionId,
+        tenantId: request.user.tenantId
+      }).lean();
+      
+      if (!decision) {
+        return reply.status(404).send({ error: 'Decision not found' });
+      }
+
       return reply.success({
-        id: decisionId,
-        taskId: 'task_stub',
-        taskSummary: 'Stub decision',
-        actionTaken: 'create_new',
-        executionSuccess: true,
-        createdAt: new Date().toISOString(),
+        id: decision._id.toString(),
+        taskId: decision.taskId,
+        taskSummary: decision.taskSummary,
+        actionTaken: decision.actionTaken,
+        skillUsed: decision.matchedSkillId || decision.newSkillCreated || null,
+        executionSuccess: decision.executionSuccess,
+        latencyMs: (decision as any).latencyMs ?? 0,
+        costUsd: (decision as any).costUsd ?? 0,
+        createdAt: decision.createdAt.toISOString()
       });
     },
   );

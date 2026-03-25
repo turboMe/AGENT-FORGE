@@ -9,11 +9,15 @@ import type {
   OrchestratorConfig,
   TaskClassification,
   RoutingDecision,
+  StepCallback,
 } from './types.js';
 import { TaskClassifier } from './classifier.js';
 import { SkillMatcher } from './skill-matcher.js';
 import { DecisionRouter } from './router.js';
 import { DecisionLogger } from './decision-logger.js';
+
+// ── No-op step callback ─────────────────────────────
+const noop: StepCallback = () => {};
 
 // ── Orchestrator ────────────────────────────────────
 
@@ -61,12 +65,15 @@ export class Orchestrator implements IOrchestrator {
    * 2. Match skills
    * 3. Route decision
    * 4. Log decision
+   *
+   * Emits real-time step progress via the optional `onStep` callback.
    */
   async executeTask(params: {
     tenantId: string;
     userId: string;
     task: string;
     options?: { forceNewSkill?: boolean };
+    onStep?: StepCallback;
   }): Promise<{
     taskId: string;
     classification: TaskClassification;
@@ -74,36 +81,69 @@ export class Orchestrator implements IOrchestrator {
     decision: IDecision;
   }> {
     const taskId = randomUUID();
+    const emit = params.onStep ?? noop;
 
     // 1. Classify the task
-    const classification = await this.classifier.classify(params.task);
+    let classification: TaskClassification;
+    try {
+      emit('classify', 'running', 'Classifying task');
+      classification = await this.classifier.classify(params.task);
+      emit('classify', 'done', 'Classifying task');
+    } catch (err) {
+      emit('classify', 'failed', `Classification failed: ${(err as Error).message}`);
+      throw err;
+    }
 
     // 2. Search for matching skills
-    const matches = await this.matcher.match(params.tenantId, classification);
+    let matches;
+    try {
+      emit('search', 'running', 'Searching skill library');
+      matches = await this.matcher.match(params.tenantId, classification);
+      emit('search', 'done', 'Searching skill library');
+    } catch (err) {
+      emit('search', 'failed', `Skill search failed: ${(err as Error).message}`);
+      throw err;
+    }
 
     // 3. Route: decide use / adapt / create
-    const routing = this.router.route(classification, matches, {
-      forceNewSkill: params.options?.forceNewSkill,
-    });
+    let routing: RoutingDecision;
+    try {
+      emit('route', 'running', 'Deciding routing');
+      routing = this.router.route(classification, matches, {
+        forceNewSkill: params.options?.forceNewSkill,
+      });
+      emit('route', 'done', 'Deciding routing');
+    } catch (err) {
+      emit('route', 'failed', `Routing failed: ${(err as Error).message}`);
+      throw err;
+    }
 
     // 4. Build and persist decision log
-    const decision = await this.logger.log({
-      _id: '',
-      tenantId: params.tenantId,
-      taskId,
-      timestamp: new Date(),
-      taskSummary: params.task.slice(0, 500),
-      taskType: classification.taskType,
-      domain: classification.domain,
-      complexity: classification.complexity,
-      searchKeywords: classification.keywords,
-      searchResult: routing.searchResult,
-      matchedSkillId: routing.matchedSkillId,
-      matchScore: routing.matchScore,
-      actionTaken: routing.action,
-      executionSuccess: false, // Will be updated post-execution
-      createdAt: new Date(),
-    });
+    let decision: IDecision;
+    try {
+      emit('log', 'running', 'Logging decision');
+      decision = await this.logger.log({
+        _id: '',
+        tenantId: params.tenantId,
+        taskId,
+        timestamp: new Date(),
+        taskSummary: params.task.slice(0, 500),
+        taskType: classification.taskType,
+        domain: classification.domain,
+        complexity: classification.complexity,
+        searchKeywords: classification.keywords,
+        searchResult: routing.searchResult,
+        matchedSkillId: routing.matchedSkillId,
+        matchScore: routing.matchScore,
+        actionTaken: routing.action,
+        executionSuccess: false, // Will be updated post-execution
+        createdAt: new Date(),
+      });
+      emit('log', 'done', 'Logging decision');
+    } catch (err) {
+      emit('log', 'failed', `Decision logging failed: ${(err as Error).message}`);
+      throw err;
+    }
 
     return {
       taskId,

@@ -25,7 +25,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "clean": "pnpm -r run clean && rm -rf node_modules",
-    "seed:skills": "tsx scripts/seed-skills.ts"
+    "seed:skills": "tsx scripts/seed-skills.ts",
+    "seed:skills:lite": "tsx scripts/seed-skills-lite.ts"
   },
   "dependencies": {
     "@agentforge/skill-library": "workspace:*",

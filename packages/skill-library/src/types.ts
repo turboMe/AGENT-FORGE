@@ -24,6 +24,17 @@ export interface SkillSearchResult {
   recommendation: 'use' | 'adapt' | 'create';
 }
 
+// ── Skill Filters ───────────────────────────────────
+
+export interface SkillFilter {
+  /** Regex search across name, description, tags */
+  search?: string;
+  /** Filter by domain (matches any element in the domain array) */
+  domain?: string;
+  /** Filter by pattern (exact match) */
+  pattern?: string;
+}
+
 // ── Pagination ──────────────────────────────────────
 
 export interface PaginationOptions {
@@ -31,6 +42,7 @@ export interface PaginationOptions {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  filter?: SkillFilter;
 }
 
 export interface PaginatedResult<T> {

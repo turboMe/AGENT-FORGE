@@ -88,21 +88,57 @@ export class SkillRepository {
   }
 
   /**
-   * List skills for a tenant with pagination.
+   * List skills for a tenant with pagination and optional filters.
    */
   async findByTenant(
     tenantId: string,
     options: PaginationOptions = {},
   ): Promise<PaginatedResult<ISkill>> {
-    const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc' } = options;
+    const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc', filter: skillFilter } = options;
     const skip = (page - 1) * limit;
 
-    const filter = { tenantId, deletedAt: null };
-    const sort: Record<string, 1 | -1> = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+    // Build query filter — include user's own skills + system/public skills
+    const query: Record<string, unknown> = {
+      deletedAt: null,
+      $or: [
+        { tenantId },
+        { isSystem: true, isPublic: true },
+      ],
+    };
+
+    if (skillFilter?.search) {
+      const regex = new RegExp(skillFilter.search, 'i');
+      // Use $and to avoid overwriting the tenant access $or
+      if (!query.$and) query.$and = [];
+      (query.$and as unknown[]).push({
+        $or: [
+          { name: regex },
+          { description: regex },
+          { tags: regex },
+        ],
+      });
+    }
+
+    if (skillFilter?.domain) {
+      query.domain = skillFilter.domain;
+    }
+
+    if (skillFilter?.pattern) {
+      query.pattern = skillFilter.pattern;
+    }
+
+    // Map frontend sort fields to DB fields
+    const sortFieldMap: Record<string, string> = {
+      use_count: 'stats.useCount',
+      satisfaction: 'stats.avgSatisfaction',
+      created_at: 'createdAt',
+    };
+    const resolvedSortBy = sortFieldMap[sortBy] ?? sortBy;
+    const sort: Record<string, 1 | -1> = { [resolvedSortBy]: sortOrder === 'asc' ? 1 : -1 };
 
     const [docs, total] = await Promise.all([
-      SkillModel.find(filter).sort(sort).skip(skip).limit(limit),
-      SkillModel.countDocuments(filter),
+      SkillModel.find(query).sort(sort).skip(skip).limit(limit),
+      SkillModel.countDocuments(query),
     ]);
 
     return {

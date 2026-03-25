@@ -19,6 +19,7 @@ export type {
   ISkillLibrary,
   SkillSearchResult,
   SearchOptions,
+  SkillFilter,
   PaginationOptions,
   PaginatedResult,
   EmbeddingConfig,

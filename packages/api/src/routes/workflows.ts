@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
+import { WorkflowRepository } from '../repositories/workflow.repository.js';
+import type { IWorkflowParameter } from '@agentforge/shared';
 
 interface WorkflowQuerystring {
   page?: string;
@@ -16,12 +18,25 @@ interface RunsQuerystring {
   limit?: string;
 }
 
+interface CreateWorkflowBody {
+  name: string;
+  description?: string;
+  skillId?: string;
+  skillName?: string;
+  schedule?: string;
+  parameters?: IWorkflowParameter[];
+}
+
 interface UpdateWorkflowBody {
   name?: string;
   description?: string;
-  parameters?: Record<string, unknown>;
+  parameters?: IWorkflowParameter[];
   schedule?: string;
+  skillId?: string;
+  skillName?: string;
 }
+
+const repo = new WorkflowRepository();
 
 export async function workflowRoutes(app: FastifyInstance) {
   // ── GET /workflows ────────────────────────────────
@@ -39,15 +54,21 @@ export async function workflowRoutes(app: FastifyInstance) {
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
-      request.log.info(
-        { tenantId: request.user.tenantId, page: pageNum, limit: limitNum, status, search },
-        'Listing workflows',
-      );
+      const { workflows, total } = await repo.findByTenant(request.user.tenantId, {
+        status,
+        search,
+        page: pageNum,
+        limit: limitNum,
+      });
 
-      // Stub: In production, calls WorkflowRepository.find()
       return reply.success({
-        workflows: [],
-        pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
+        workflows,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
       });
     },
   );
@@ -57,23 +78,11 @@ export async function workflowRoutes(app: FastifyInstance) {
     '/workflows/:id',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const { id } = request.params;
-
-      request.log.info(
-        { tenantId: request.user.tenantId, workflowId: id },
-        'Fetching workflow',
-      );
-
-      return reply.success({
-        id,
-        name: 'stub-workflow',
-        description: 'Stub workflow for development',
-        status: 'active',
-        parameters: {},
-        stats: { runCount: 0, successRate: 0, avgDurationMs: 0, lastRunAt: null },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      const workflow = await repo.findById(request.params.id, request.user.tenantId);
+      if (!workflow) {
+        return reply.code(404).send({ success: false, error: 'Workflow not found' });
+      }
+      return reply.success(workflow);
     },
   );
 
@@ -82,45 +91,37 @@ export async function workflowRoutes(app: FastifyInstance) {
     '/workflows/:id/runs',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const { id } = request.params;
       const { limit = '20' } = request.query;
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
-      request.log.info(
-        { tenantId: request.user.tenantId, workflowId: id, limit: limitNum },
-        'Fetching workflow runs',
-      );
-
-      return reply.success({ runs: [] });
+      const runs = await repo.findRuns(request.params.id, request.user.tenantId, limitNum);
+      return reply.success({ runs });
     },
   );
 
   // ── POST /workflows ───────────────────────────────
-  app.post<{ Body: UpdateWorkflowBody }>(
+  app.post<{ Body: CreateWorkflowBody }>(
     '/workflows',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const { name, description, parameters, schedule } = request.body;
-      const { uid, tenantId } = request.user;
+      const { name, description, skillId, skillName, schedule, parameters } = request.body;
 
-      request.log.info(
-        { userId: uid, tenantId, workflowName: name },
-        'Creating workflow',
-      );
+      if (!name) {
+        return reply.code(400).send({ success: false, error: 'name is required' });
+      }
 
-      const id = `wf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-
-      return reply.success({
-        id,
+      const workflow = await repo.create({
+        tenantId: request.user.tenantId,
+        createdBy: request.user.uid,
         name,
         description,
-        status: 'draft',
-        parameters,
+        skillId,
+        skillName,
         schedule,
-        createdBy: uid,
-        tenantId,
-        createdAt: new Date().toISOString(),
+        parameters: parameters as CreateWorkflowBody['parameters'],
       });
+
+      return reply.code(201).success(workflow);
     },
   );
 
@@ -129,19 +130,12 @@ export async function workflowRoutes(app: FastifyInstance) {
     '/workflows/:id',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const { id } = request.params;
       const updates = request.body;
-
-      request.log.info(
-        { tenantId: request.user.tenantId, workflowId: id, fields: Object.keys(updates) },
-        'Updating workflow',
-      );
-
-      return reply.success({
-        id,
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      });
+      const workflow = await repo.update(request.params.id, request.user.tenantId, updates);
+      if (!workflow) {
+        return reply.code(404).send({ success: false, error: 'Workflow not found' });
+      }
+      return reply.success(workflow);
     },
   );
 
@@ -150,14 +144,11 @@ export async function workflowRoutes(app: FastifyInstance) {
     '/workflows/:id/pause',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const { id } = request.params;
-
-      request.log.info(
-        { tenantId: request.user.tenantId, workflowId: id },
-        'Pausing workflow',
-      );
-
-      return reply.success({ id, status: 'paused', updatedAt: new Date().toISOString() });
+      const workflow = await repo.updateStatus(request.params.id, request.user.tenantId, 'paused');
+      if (!workflow) {
+        return reply.code(404).send({ success: false, error: 'Workflow not found' });
+      }
+      return reply.success(workflow);
     },
   );
 
@@ -166,14 +157,11 @@ export async function workflowRoutes(app: FastifyInstance) {
     '/workflows/:id/resume',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const { id } = request.params;
-
-      request.log.info(
-        { tenantId: request.user.tenantId, workflowId: id },
-        'Resuming workflow',
-      );
-
-      return reply.success({ id, status: 'active', updatedAt: new Date().toISOString() });
+      const workflow = await repo.updateStatus(request.params.id, request.user.tenantId, 'active');
+      if (!workflow) {
+        return reply.code(404).send({ success: false, error: 'Workflow not found' });
+      }
+      return reply.success(workflow);
     },
   );
 
@@ -182,14 +170,11 @@ export async function workflowRoutes(app: FastifyInstance) {
     '/workflows/:id',
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const { id } = request.params;
-
-      request.log.info(
-        { tenantId: request.user.tenantId, workflowId: id },
-        'Deleting workflow (soft)',
-      );
-
-      return reply.success({ id, deletedAt: new Date().toISOString() });
+      const deleted = await repo.softDelete(request.params.id, request.user.tenantId);
+      if (!deleted) {
+        return reply.code(404).send({ success: false, error: 'Workflow not found' });
+      }
+      return reply.success({ id: request.params.id, deletedAt: new Date().toISOString() });
     },
   );
 }

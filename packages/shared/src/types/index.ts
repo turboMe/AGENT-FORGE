@@ -1,3 +1,12 @@
+// ── File Attachment ─────────────────────────────────
+export interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content?: string;
+  url?: string;
+}
+
 // ── Tenant ──────────────────────────────────────────
 export interface ITenant {
   _id: string;
@@ -43,6 +52,28 @@ export interface IUser {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+}
+
+// ── User Profile (Settings) ────────────────────────
+export interface IUserProfile {
+  _id: string;
+  firebaseUid: string;
+  tenantId: string;
+  displayName: string;
+  email: string;
+  avatarUrl?: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  preferences: {
+    theme: 'light' | 'dark' | 'system';
+    defaultModel: string;
+    notifications: {
+      email: boolean;
+      push: boolean;
+      weeklyReport: boolean;
+    };
+  };
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ── Skill ───────────────────────────────────────────
@@ -216,4 +247,97 @@ export interface IApiKey {
   expiresAt?: Date;
   createdAt: Date;
   revokedAt?: Date;
+}
+
+// ── Credential ──────────────────────────────────────
+export interface ICredential {
+  _id: string;
+  tenantId: string;
+  userId: string;
+  service: string;
+  encryptedKey: string;
+  iv: string;
+  maskedKey: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ── Workflow ────────────────────────────────────────
+
+export interface IWorkflowParameter {
+  key: string;
+  value: string;
+  type: 'string' | 'number' | 'boolean' | 'select';
+  label: string;
+  description?: string;
+  options?: string[];
+}
+
+export type WorkflowStatus = 'active' | 'paused' | 'completed' | 'failed' | 'draft';
+
+export interface IWorkflow {
+  _id: string;
+  tenantId: string;
+  name: string;
+  description: string;
+  status: WorkflowStatus;
+  skillId?: string;
+  skillName?: string;
+  schedule?: string;
+  parameters: IWorkflowParameter[];
+  stats: {
+    runCount: number;
+    successRate: number;
+    avgDurationMs: number;
+    lastRunAt?: Date;
+  };
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
+}
+
+// ── Workflow Run ────────────────────────────────────
+
+export type WorkflowRunStatus = 'success' | 'failed' | 'running' | 'cancelled';
+
+export interface IWorkflowRun {
+  _id: string;
+  workflowId: string;
+  tenantId: string;
+  status: WorkflowRunStatus;
+  startedAt: Date;
+  completedAt?: Date;
+  durationMs: number;
+  output?: string;
+  error?: string;
+  triggeredBy: 'schedule' | 'manual';
+}
+
+// ── Conversation ────────────────────────────────────
+
+export interface IConversationFile {
+  name: string;
+  type: string;
+  size: number;
+  content?: string;
+}
+
+export interface IConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  files?: IConversationFile[];
+  timestamp: Date;
+}
+
+export interface IConversation {
+  _id: string;
+  tenantId: string;
+  userId: string;       // conversations are per-user
+  title: string;
+  messages: IConversationMessage[];
+  lastTaskId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
 }

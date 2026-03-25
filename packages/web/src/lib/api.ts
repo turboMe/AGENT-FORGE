@@ -28,12 +28,18 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
 async function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const authHeaders = await getAuthHeaders();
+  // Only include Content-Type: application/json if there's a body
+  // Sending it without a body causes Fastify to try parsing empty body as JSON → 500
+  const headers: Record<string, string> = {
+    ...authHeaders,
+    ...(init?.headers as Record<string, string> ?? {}),
+  };
+  if (!init?.body) {
+    delete headers['Content-Type'];
+  }
   return fetch(url, {
     ...init,
-    headers: {
-      ...authHeaders,
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 }
 
@@ -90,6 +96,30 @@ export async function deleteSkill(skillId: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete skill: ${res.status}`);
 }
 
+export interface CreateSkillPayload {
+  name: string;
+  description: string;
+  domain: string[];
+  pattern: string;
+  template: {
+    persona: string;
+    process: string[];
+    outputFormat: string;
+    constraints: string[];
+    systemPrompt?: string;
+  };
+}
+
+export async function createSkill(data: CreateSkillPayload): Promise<Skill> {
+  const res = await authFetch(`${API_BASE}/skills`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create skill: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
 /**
  * Stream a task through the AgentForge pipeline via SSE.
  * Automatically prepends "/route " to every task.
@@ -100,6 +130,7 @@ export function streamTask(
   task: string,
   options: Record<string, unknown> | undefined,
   onEvent: (event: SSEEvent) => void,
+  extra?: { conversationId?: string; files?: { name: string; type: string; size: number; content?: string }[]; skillId?: string },
 ): AbortController {
   const controller = new AbortController();
 
@@ -114,7 +145,7 @@ export function streamTask(
       const res = await fetch(`${API_BASE}/tasks/stream`, {
         method: 'POST',
         headers: authHeaders,
-        body: JSON.stringify({ task: prefixedTask, options }),
+        body: JSON.stringify({ task: prefixedTask, options, conversationId: extra?.conversationId, files: extra?.files, skillId: extra?.skillId }),
         signal: controller.signal,
       });
 
@@ -175,13 +206,26 @@ export function streamTask(
                 case 'done':
                   onEvent({
                     type: 'done',
-                    data: parsed as { taskId: string; routing: Record<string, unknown> },
+                    data: parsed as { taskId?: string; status?: string; type?: string; isDeliverable?: boolean; routing?: Record<string, unknown> },
+                  });
+                  break;
+                case 'architect_questions':
+                  onEvent({
+                    type: 'architect_questions',
+                    data: parsed as { questions: string; requiresFollowUp: boolean },
                   });
                   break;
                 case 'error':
                   onEvent({
                     type: 'error',
                     data: parsed as { message: string },
+                  });
+                  break;
+                case 'heartbeat':
+                  // Keepalive — no-op, just prevents connection timeout
+                  onEvent({
+                    type: 'heartbeat',
+                    data: parsed as { ts: number },
                   });
                   break;
               }
@@ -204,6 +248,73 @@ export function streamTask(
   })();
 
   return controller;
+}
+
+// ── Conversation API ────────────────────────────────
+
+export interface ApiConversation {
+  _id: string;
+  tenantId: string;
+  userId: string;
+  title: string;
+  messages?: { role: 'user' | 'assistant'; content: string; files?: { name: string; type: string; size: number }[]; timestamp: string }[];
+  lastTaskId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FetchConversationsResponse {
+  conversations: ApiConversation[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchConversations(params?: { page?: number; limit?: number; search?: string }): Promise<FetchConversationsResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.search) query.set('search', params.search);
+
+  const res = await authFetch(`${API_BASE}/conversations?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch conversations: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function createConversation(title?: string): Promise<ApiConversation> {
+  const res = await authFetch(`${API_BASE}/conversations`, {
+    method: 'POST',
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`Failed to create conversation: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function fetchConversation(id: string): Promise<ApiConversation> {
+  const res = await authFetch(`${API_BASE}/conversations/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch conversation: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function updateConversationTitle(id: string, title: string): Promise<void> {
+  const res = await authFetch(`${API_BASE}/conversations/${id}/title`, {
+    method: 'PUT',
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`Failed to update conversation title: ${res.status}`);
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const res = await authFetch(`${API_BASE}/conversations/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to delete conversation: ${res.status}`);
 }
 
 // ── Workflow API ─────────────────────────────────────
@@ -235,14 +346,26 @@ export async function fetchWorkflows(params: FetchWorkflowsParams = {}): Promise
   const res = await authFetch(`${API_BASE}/workflows?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch workflows: ${res.status}`);
   const json = await res.json();
-  return json.data ?? json;
+  const data = json.data ?? json;
+  // Map _id → id for frontend compatibility
+  return {
+    ...data,
+    workflows: (data.workflows ?? []).map((w: Record<string, unknown>) => ({
+      ...w,
+      id: w._id ?? w.id,
+    })),
+  };
 }
 
 export async function fetchWorkflowRuns(workflowId: string, limit = 20): Promise<WorkflowRun[]> {
   const res = await authFetch(`${API_BASE}/workflows/${workflowId}/runs?limit=${limit}`);
   if (!res.ok) throw new Error(`Failed to fetch workflow runs: ${res.status}`);
   const json = await res.json();
-  return json.data?.runs ?? [];
+  const runs = json.data?.runs ?? [];
+  return runs.map((r: Record<string, unknown>) => ({
+    ...r,
+    id: r._id ?? r.id,
+  }));
 }
 
 export async function pauseWorkflow(workflowId: string): Promise<void> {
@@ -362,6 +485,15 @@ export async function installMarketplaceSkill(skillId: string): Promise<{ instal
     method: 'POST',
   });
   if (!res.ok) throw new Error(`Failed to install skill: ${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function publishSkill(skillId: string): Promise<Skill> {
+  const res = await authFetch(`${API_BASE}/skills/${skillId}/publish`, {
+    method: 'PUT',
+  });
+  if (!res.ok) throw new Error(`Failed to publish skill: ${res.status}`);
   const json = await res.json();
   return json.data ?? json;
 }

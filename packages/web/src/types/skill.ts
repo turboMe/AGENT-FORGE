@@ -1,4 +1,11 @@
-// ── Skill Types (Frontend) ──────────────────────────
+export interface SkillTemplate {
+  persona: string;
+  process: string[];
+  outputFormat: string;
+  constraints: string[];
+  systemPrompt?: string;
+  examples?: { input: string; output: string }[];
+}
 
 export interface Skill {
   id: string;
@@ -11,6 +18,7 @@ export interface Skill {
   version: number;
   isSystem: boolean;
   isPublic: boolean;
+  template?: SkillTemplate;
   stats: {
     useCount: number;
     totalRatings: number;
@@ -42,6 +50,7 @@ export interface SkillUpdatePayload {
   domain?: string[];
   pattern?: string;
   tags?: string[];
+  template?: Partial<SkillTemplate>;
 }
 
 // ── Constants ───────────────────────────────────────

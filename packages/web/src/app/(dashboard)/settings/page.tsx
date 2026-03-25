@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Settings as SettingsIcon,
   User,
@@ -17,6 +17,7 @@ import {
   Mail,
   FileText,
   Check,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -30,36 +31,7 @@ import {
   AVAILABLE_MODELS,
   PLAN_DETAILS,
 } from "@/types/settings";
-
-// ── Mock data ───────────────────────────────────────
-
-const MOCK_PROFILE: UserProfile = {
-  displayName: "Linus",
-  email: "linus@agentforge.ai",
-  avatarUrl: null,
-  plan: "free",
-  createdAt: "2026-01-15T12:00:00Z",
-  preferences: {
-    theme: "dark",
-    defaultModel: "claude-sonnet-4",
-    notifications: { email: true, push: true, weeklyReport: false },
-  },
-};
-
-const MOCK_USAGE: UsageStats = {
-  apiCalls: { used: 1247, limit: 5000 },
-  storage: { used: 128, limit: 512 },
-  skills: { used: 9, limit: 25 },
-};
-
-// ── Tab icons ───────────────────────────────────────
-
-const TAB_ICONS: Record<SettingsTab, React.ElementType> = {
-  profile: User,
-  billing: CreditCard,
-  usage: BarChart3,
-  preferences: SlidersHorizontal,
-};
+import { fetchProfile, updateProfile, fetchUsage } from "@/lib/api";
 
 // ── Progress bar ────────────────────────────────────
 
@@ -151,22 +123,73 @@ function ToggleSwitch({
   );
 }
 
+// ── Loading skeleton ────────────────────────────────
+
+function SettingsSkeleton() {
+  return (
+    <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
+        <p className="text-sm text-muted-foreground">Loading settings…</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Page Component ──────────────────────────────────
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
-  const [profile, setProfile] = useState<UserProfile>(MOCK_PROFILE);
-  const [preferences, setPreferences] = useState<UserPreferences>(MOCK_PROFILE.preferences);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [comingSoonToast, setComingSoonToast] = useState(false);
 
+  // ── Fetch data on mount ─────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [profileData, usageData] = await Promise.all([
+          fetchProfile(),
+          fetchUsage(),
+        ]);
+        if (cancelled) return;
+        setProfile(profileData);
+        setPreferences(profileData.preferences);
+        setUsage(usageData);
+      } catch (err) {
+        console.error("Failed to load settings:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
   // ── Handlers ────────────────────────────────────
 
-  const handleSaveProfile = useCallback(() => {
-    setSavedToast(true);
-    setTimeout(() => setSavedToast(false), 2000);
-    // updateProfile(profile).catch(console.error);
-  }, []);
+  const handleSaveProfile = useCallback(async () => {
+    if (!profile) return;
+    setSaving(true);
+    try {
+      await updateProfile({
+        displayName: profile.displayName,
+        email: profile.email,
+        preferences,
+      } as Partial<UserProfile>);
+      setSavedToast(true);
+      setTimeout(() => setSavedToast(false), 2000);
+    } catch (err) {
+      console.error("Failed to save profile:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [profile, preferences]);
 
   const handleUpgrade = useCallback(() => {
     setComingSoonToast(true);
@@ -175,20 +198,46 @@ export default function SettingsPage() {
 
   const updatePref = useCallback(
     <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
-      setPreferences((prev) => ({ ...prev, [key]: value }));
+      setPreferences((prev) => prev ? { ...prev, [key]: value } : prev);
     },
     []
   );
 
   const updateNotif = useCallback(
     (key: keyof UserPreferences["notifications"], value: boolean) => {
-      setPreferences((prev) => ({
-        ...prev,
-        notifications: { ...prev.notifications, [key]: value },
-      }));
+      setPreferences((prev) =>
+        prev
+          ? {
+              ...prev,
+              notifications: { ...prev.notifications, [key]: value },
+            }
+          : prev
+      );
     },
     []
   );
+
+  // ── Loading state ───────────────────────────────
+  if (loading || !profile || !preferences || !usage) {
+    return (
+      <div className="flex flex-1 flex-col min-h-0">
+        <div className="border-b border-border/50 bg-background/80 backdrop-blur-xl px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-slate-500 to-zinc-600 shadow-lg shadow-slate-500/20">
+              <SettingsIcon className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-foreground">Settings</h1>
+              <p className="text-xs text-muted-foreground">
+                Manage your profile, plan, and preferences
+              </p>
+            </div>
+          </div>
+        </div>
+        <SettingsSkeleton />
+      </div>
+    );
+  }
 
   // ── Render sections ─────────────────────────────
 
@@ -218,7 +267,7 @@ export default function SettingsPage() {
             id="settings-name"
             type="text"
             value={profile.displayName}
-            onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))}
+            onChange={(e) => setProfile((p) => p ? { ...p, displayName: e.target.value } : p)}
             className="w-full rounded-xl border border-border/50 bg-secondary/50 px-4 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30"
           />
         </div>
@@ -230,7 +279,7 @@ export default function SettingsPage() {
             id="settings-email"
             type="email"
             value={profile.email}
-            onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+            onChange={(e) => setProfile((p) => p ? { ...p, email: e.target.value } : p)}
             className="w-full rounded-xl border border-border/50 bg-secondary/50 px-4 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30"
           />
         </div>
@@ -241,10 +290,15 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={handleSaveProfile}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40"
+          disabled={saving}
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:opacity-50"
         >
-          <Save className="h-3.5 w-3.5" />
-          Save Changes
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          {saving ? "Saving…" : "Save Changes"}
         </button>
       </div>
     </div>
@@ -307,23 +361,23 @@ export default function SettingsPage() {
   const renderUsage = () => (
     <div className="space-y-3 animate-in">
       <UsageBar
-        label="API Calls"
-        used={MOCK_USAGE.apiCalls.used}
-        limit={MOCK_USAGE.apiCalls.limit}
+        label="API Calls (Decisions)"
+        used={usage.apiCalls.used}
+        limit={usage.apiCalls.limit}
         unit="calls"
         icon={Zap}
       />
       <UsageBar
         label="Storage"
-        used={MOCK_USAGE.storage.used}
-        limit={MOCK_USAGE.storage.limit}
+        used={usage.storage.used}
+        limit={usage.storage.limit}
         unit="MB"
         icon={HardDrive}
       />
       <UsageBar
         label="Skills"
-        used={MOCK_USAGE.skills.used}
-        limit={MOCK_USAGE.skills.limit}
+        used={usage.skills.used}
+        limit={usage.skills.limit}
         unit="skills"
         icon={Layers}
       />
@@ -376,6 +430,23 @@ export default function SettingsPage() {
         description="Summary of your agent activity every Monday"
         icon={FileText}
       />
+
+      {/* Save preferences */}
+      <div className="flex justify-end pt-2">
+        <button
+          type="button"
+          onClick={handleSaveProfile}
+          disabled={saving}
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:opacity-50"
+        >
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          {saving ? "Saving…" : "Save Preferences"}
+        </button>
+      </div>
     </div>
   );
 
@@ -456,3 +527,12 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+// ── Tab icons (must be after imports) ───────────────
+
+const TAB_ICONS: Record<SettingsTab, React.ElementType> = {
+  profile: User,
+  billing: CreditCard,
+  usage: BarChart3,
+  preferences: SlidersHorizontal,
+};

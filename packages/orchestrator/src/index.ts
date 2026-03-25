@@ -18,4 +18,6 @@ export type {
   TaskClassification,
   SkillMatchResult,
   RoutingDecision,
+  StepCallback,
+  StepStatus,
 } from './types.js';

@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../middleware/authenticate.js';
+import { UserProfileRepository } from '../repositories/user-profile.repository.js';
 
 interface UpdateProfileBody {
   displayName?: string;
   email?: string;
   avatarUrl?: string;
   preferences?: {
-    theme?: string;
+    theme?: 'light' | 'dark' | 'system';
     defaultModel?: string;
     notifications?: {
       email?: boolean;
@@ -16,6 +17,8 @@ interface UpdateProfileBody {
   };
 }
 
+const repo = new UserProfileRepository();
+
 export async function settingsRoutes(app: FastifyInstance) {
   // ── GET /settings/profile ─────────────────────────
   app.get(
@@ -24,27 +27,12 @@ export async function settingsRoutes(app: FastifyInstance) {
       preHandler: [authenticate],
     },
     async (request, reply) => {
-      const { uid, tenantId } = request.user;
+      const { uid, tenantId, email } = request.user;
 
       request.log.info({ userId: uid, tenantId }, 'Fetching profile');
 
-      // Stub: In production, fetches from user profile store
-      return reply.success({
-        displayName: 'Agent User',
-        email: request.user.email || 'user@agentforge.ai',
-        avatarUrl: null,
-        plan: 'free',
-        createdAt: '2026-01-01T00:00:00Z',
-        preferences: {
-          theme: 'dark',
-          defaultModel: 'claude-sonnet-4',
-          notifications: {
-            email: true,
-            push: true,
-            weeklyReport: false,
-          },
-        },
-      });
+      const profile = await repo.findOrCreate(uid, tenantId, email);
+      return reply.success(profile);
     },
   );
 
@@ -63,11 +51,8 @@ export async function settingsRoutes(app: FastifyInstance) {
         'Updating profile',
       );
 
-      // Stub: In production, updates user profile store
-      return reply.success({
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      });
+      const profile = await repo.update(uid, tenantId, updates as any);
+      return reply.success(profile);
     },
   );
 
@@ -82,12 +67,8 @@ export async function settingsRoutes(app: FastifyInstance) {
 
       request.log.info({ userId: uid, tenantId }, 'Fetching usage stats');
 
-      // Stub: In production, aggregates from usage tracking service
-      return reply.success({
-        apiCalls: { used: 1247, limit: 5000 },
-        storage: { used: 128, limit: 512 },
-        skills: { used: 9, limit: 25 },
-      });
+      const usage = await repo.getUsageStats(tenantId);
+      return reply.success(usage);
     },
   );
 }

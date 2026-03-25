@@ -16,6 +16,9 @@ const ACCEPTED_TYPES = [
   "text/markdown",
   "text/csv",
   "application/json",
+  "application/pdf",
+  "text/yaml",
+  "application/x-yaml",
   "image/png",
   "image/jpeg",
   "image/webp",
@@ -23,6 +26,16 @@ const ACCEPTED_TYPES = [
 ];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+/** MIME types whose content should be read as text */
+const TEXT_READABLE = new Set([
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
+  "text/yaml",
+  "application/x-yaml",
+]);
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -32,7 +45,7 @@ function formatFileSize(bytes: number): string {
 
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return <ImageIcon className="h-4 w-4" />;
-  if (type.includes("json") || type.includes("csv")) return <FileCode className="h-4 w-4" />;
+  if (type.includes("json") || type.includes("csv") || type.includes("yaml")) return <FileCode className="h-4 w-4" />;
   return <FileText className="h-4 w-4" />;
 }
 
@@ -42,24 +55,50 @@ export function FileUpload({ files, onFilesChange, onClose }: FileUploadProps) {
 
   const addFiles = useCallback(
     (fileList: FileList | File[]) => {
-      const newFiles: UploadedFile[] = [];
       const arr = Array.from(fileList);
+      const readPromises: Promise<UploadedFile | null>[] = arr.map((file) => {
+        if (!ACCEPTED_TYPES.includes(file.type)) return Promise.resolve(null);
+        if (file.size > MAX_FILE_SIZE) return Promise.resolve(null);
 
-      for (const file of arr) {
-        if (!ACCEPTED_TYPES.includes(file.type)) continue;
-        if (file.size > MAX_FILE_SIZE) continue;
+        return new Promise<UploadedFile>((resolve) => {
+          const meta: UploadedFile = {
+            id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          };
 
-        newFiles.push({
-          id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          name: file.name,
-          size: file.size,
-          type: file.type,
+          if (TEXT_READABLE.has(file.type)) {
+            // Read text-based files as text
+            const reader = new FileReader();
+            reader.onload = () => {
+              meta.content = reader.result as string;
+              resolve(meta);
+            };
+            reader.onerror = () => resolve(meta);
+            reader.readAsText(file);
+          } else if (file.type.startsWith('image/')) {
+            // Read images as base64 data URI for vision support
+            const reader = new FileReader();
+            reader.onload = () => {
+              meta.content = reader.result as string; // data:image/png;base64,...
+              resolve(meta);
+            };
+            reader.onerror = () => resolve(meta);
+            reader.readAsDataURL(file);
+          } else {
+            // PDF and other binary files — metadata only (no content extraction)
+            resolve(meta);
+          }
         });
-      }
+      });
 
-      if (newFiles.length > 0) {
-        onFilesChange([...files, ...newFiles]);
-      }
+      Promise.all(readPromises).then((results) => {
+        const newFiles = results.filter((f): f is UploadedFile => f !== null);
+        if (newFiles.length > 0) {
+          onFilesChange([...files, ...newFiles]);
+        }
+      });
     },
     [files, onFilesChange]
   );
@@ -132,7 +171,7 @@ export function FileUpload({ files, onFilesChange, onClose }: FileUploadProps) {
               {isDragOver ? "Drop files here" : "Drag & drop or click to browse"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              txt, md, json, csv, images — max 10MB
+              txt, md, json, csv, yaml, pdf, images — max 10MB
             </p>
           </div>
         </div>
